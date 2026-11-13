@@ -1,5 +1,9 @@
 # delta
-
+## Çalıştırma
+```
+pip install -r requirements.txt
+python main.py
+```
 Toplantıda bir şey anlatmak, aklına geleni hemen not almak için çizim tahtası + ekran alıntısı aracı.
 gamma player ile aynı görünüm (AMOLED siyah, gri vurgu, 10 tema).
 
@@ -42,12 +46,6 @@ Araç tuşları Seçenekler › Tahta kısayolları'ndan değiştirilebilir.
 | Yan tuşlar | Geri al / yinele |
 
 Tüm kontroller uygulamada **F1**.
-
-## Çalıştırma
-```
-pip install -r requirements.txt
-python main.py
-```
 
 ## Lisans
 
