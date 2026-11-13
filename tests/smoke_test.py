@@ -386,6 +386,20 @@ def main():
     pump()
     step("kısayol tekrar: kapandı ve temizlendi", not ann.isVisible() and ann.board.is_empty())
 
+    # pencereden "ekrana çiz": delta görev çubuğuna iner, kapanınca geri gelir
+    win.bring_front()
+    pump(10)
+    win.request_annotate.emit()
+    pump(10)
+    went_down = win.isMinimized()
+    from PyQt6.QtTest import QTest
+    QTest.qWait(300)
+    opened = ann.isVisible()
+    ann.close_overlay()
+    pump(10)
+    step("pencereden ekrana çiz: delta iner, kapanınca geri gelir",
+         went_down and opened and not win.isMinimized() and win.isVisible())
+
     # ekran videosu: önce seçim ekranı (sahte görüntü) kayıt modunda
     from deltaapp.recorder import find_ffmpeg
     recs = []

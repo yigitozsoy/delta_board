@@ -27,6 +27,7 @@ user32.GetWindowLongW.restype = ctypes.c_long
 
 class AnnotateOverlay(QWidget):
     export = pyqtSignal(object)   # QPixmap
+    closed = pyqtSignal()
 
     def __init__(self):
         super().__init__(None, Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint |
@@ -89,6 +90,7 @@ class AnnotateOverlay(QWidget):
         self.board.opaque_bg = False
         self.toolbar.extra_btns["board"].setChecked(False)
         self.hide()
+        self.closed.emit()
 
     def _toggle_board(self):
         self.board.opaque_bg = self.toolbar.extra_btns["board"].isChecked()

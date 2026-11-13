@@ -58,7 +58,9 @@ class DeltaApp(QObject):
         self._restore_after_capture = False
 
         self.win.request_capture.connect(self.start_capture_from_window)
-        self.win.request_annotate.connect(self.annotate.toggle)
+        self.win.request_annotate.connect(self.start_annotate_from_window)
+        self.annotate.closed.connect(self._annotate_done)
+        self._restore_after_annotate = False
         self.win.request_record.connect(self.start_record_from_window)
         self.win.request_prefs.connect(self.show_prefs)
         self.win.request_quit.connect(self.quit)
@@ -182,6 +184,23 @@ class DeltaApp(QObject):
         self._restore_after_capture = self.win.isVisible() and not self.win.isMinimized()
         self.win.hide()
         self.capture.start(220)
+
+    def start_annotate_from_window(self):
+        """Pencereden basılınca delta görev çubuğuna iner, ekrana çiz kapanınca geri gelir."""
+        if self.annotate.isVisible():
+            self.annotate.toggle()
+            return
+        self._restore_after_annotate = self.win.isVisible() and not self.win.isMinimized()
+        if self._restore_after_annotate:
+            self.win.showMinimized()
+            QTimer.singleShot(180, self.annotate.open)   # küçülme bitsin, katman altta delta'yı göstermesin
+        else:
+            self.annotate.open()
+
+    def _annotate_done(self):
+        if self._restore_after_annotate and self.win.isMinimized():
+            self.win.bring_front()
+        self._restore_after_annotate = False
 
     def start_record_from_window(self):
         if self.recorder.active():

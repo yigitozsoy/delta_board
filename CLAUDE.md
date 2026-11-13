@@ -12,7 +12,7 @@ kuralları burada da geçerli: Türkçe, sade varsayılanlar, gri vurgu, mor yok
   (kullanıcı "commit et githuba koy, sorma" dediyse doğrudan yap).
 - Çalıştır: `python main.py` · tepside sessiz başlat: `python main.py --tray` · alıntı başlat: `--snip`
   (kurulum masaüstüne / Başlat'a "delta alıntı" kısayolu koyar, simgesi `assets/snip.ico`, `packaging/make_logo.py` üretir)
-- Test: `python tests/smoke_test.py` (71 adım, gerçek 2 sn'lik ffmpeg kaydı ve gerçek OCR dahil; gerçek arayüz; `--shots KLASÖR` ekran görüntüsü alır)
+- Test: `python tests/smoke_test.py` (72 adım, gerçek 2 sn'lik ffmpeg kaydı ve gerçek OCR dahil; gerçek arayüz; `--shots KLASÖR` ekran görüntüsü alır)
   PowerShell'de Türkçe çıktı için `$env:PYTHONIOENCODING="utf-8"`.
 - Lint: `python -m pyflakes deltaapp tests` temiz olmalı.
 - Derleme: `powershell -ExecutionPolicy Bypass -File packaging\build.ps1` → `build\dist\delta\delta.exe` (PyInstaller,

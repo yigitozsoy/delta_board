@@ -320,8 +320,8 @@ class MainWindow(QMainWindow):
                 self.board.mapToScene(self.board.viewport().rect().center()) + QPointF(-120, -60)))
 
     def bring_front(self):
-        if self.isMinimized():
-            self.showNormal()
+        if self.isMinimized():   # büyütülmüşse büyütülmüş geri gelsin (showNormal küçültürdü)
+            self.setWindowState((self.windowState() & ~Qt.WindowState.WindowMinimized) | Qt.WindowState.WindowActive)
         self.show()
         self.raise_()
         self.activateWindow()
