@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Derleme çıktıları
+build/
+dist/
+packaging/version_info.txt
+packaging/version.iss
+
+# Editör / sistem
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+.claude/
+
+# Test çıktıları (video / ekran görüntüsü depoya girmesin)
+*.mp4
+shots/
