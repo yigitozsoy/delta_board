@@ -7,6 +7,8 @@ kuralları burada da geçerli: Türkçe, sade varsayılanlar, gri vurgu, mor yok
 
 - Python 3.14 · PyQt6 (Pillow isteğe bağlı) · yalnızca Windows 10/11
 - Sürüm: `deltaapp/__init__.py` → `__version__`
+- Repo: https://github.com/yigitozsoy/delta_board (herkese açık; sürümler Releases'ta, kurulum + zip).
+  Commit kimliği yerel: `Yiğit Özsoy <yigitozsoy@users.noreply.github.com>`. Push / etiket / release öncesi onay al.
 - Çalıştır: `python main.py` · tepside sessiz başlat: `python main.py --tray`
 - Test: `python tests/smoke_test.py` (57 adım, gerçek 2 sn'lik ffmpeg kaydı dahil; gerçek arayüz; `--shots KLASÖR` ekran görüntüsü alır)
   PowerShell'de Türkçe çıktı için `$env:PYTHONIOENCODING="utf-8"`.

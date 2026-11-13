@@ -31,3 +31,8 @@ Tüm kontroller uygulamada **F1**.
 pip install -r requirements.txt
 python main.py
 ```
+
+## Lisans
+
+Geliştirici: **Yiğit Özsoy** · [GPL-3.0](LICENSE). delta; [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) (GPL),
+[FFmpeg](https://ffmpeg.org/) (GPL derlemesi, imageio-ffmpeg üzerinden, ekran videosu için) ve isteğe bağlı Pillow kullanır.
