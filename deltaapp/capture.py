@@ -47,6 +47,7 @@ class CapBar(QWidget):
             b.clicked.connect(overlay.send)
             lay.addWidget(b)
             for ic, txt, fn, tip in (("pin", t("pin"), overlay.pin, t("pin_snip_tip")),
+                                     ("text", t("ocr"), overlay.ocr, t("ocr_tip")),
                                      ("copy", t("copy"), overlay.copy, ""), ("save", t("save"), overlay.save, ""),
                                      ("videocam", t("rec_video"), overlay.record, t("rec_video_tip"))):
                 bb = QPushButton(icons.icon(ic, "#f1f1f1", 18), " " + txt)
@@ -195,6 +196,8 @@ class CaptureOverlay(QWidget):
             if self.sel.isNull():
                 self.sel = QRect(self.rect())
             self.record() if self.ctrl.mode == "record" else self.send()
+        elif ctrl and e.modifiers() & Qt.KeyboardModifier.ShiftModifier and k == Qt.Key.Key_C                 and not self.sel.isNull() and self.ctrl.mode != "record":
+            self.ocr()
         elif ctrl and k == Qt.Key.Key_C and not self.sel.isNull():
             self.copy()
         elif ctrl and k == Qt.Key.Key_S and not self.sel.isNull():
@@ -257,6 +260,11 @@ class CaptureOverlay(QWidget):
             return
         self.ctrl.finish("pin", (self.cropped(), self.mapToGlobal(self.sel.topLeft())))
 
+    def ocr(self):
+        if self.sel.isNull():
+            return
+        self.ctrl.finish("ocr", self._plain(self.cropped()))
+
     def copy(self):
         QApplication.clipboard().setPixmap(self._plain(self.cropped()))
         self.ctrl.finish("copy", None)
@@ -274,6 +282,7 @@ class CaptureController(QObject):
     copied = pyqtSignal()
     record = pyqtSignal(object)        # (ekran, mantıksal seçim, dpr)
     pinned = pyqtSignal(object)        # (QPixmap, genel konum)
+    ocr_req = pyqtSignal(object)       # QPixmap: yazısı okunacak
     finished = pyqtSignal()
 
     def __init__(self):
@@ -337,4 +346,6 @@ class CaptureController(QObject):
             self.record.emit(data)
         elif what == "pin":
             self.pinned.emit(data)
+        elif what == "ocr":
+            self.ocr_req.emit(data)
         self.finished.emit()

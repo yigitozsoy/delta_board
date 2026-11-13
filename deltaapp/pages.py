@@ -317,6 +317,7 @@ class NotesPanel(QWidget):
     rename_page = pyqtSignal(object)
     delete_page = pyqtSignal(object)
     export_page = pyqtSignal(object)
+    export_all = pyqtSignal()
 
     def __init__(self, store, parent=None):
         super().__init__(parent)
@@ -389,7 +390,8 @@ class NotesPanel(QWidget):
         m = QMenu(self)
         m.addAction(icons.icon("open_in", col, 18), t("open"), lambda: self.open_page.emit(p))
         m.addAction(icons.icon("edit", col, 18), t("rename"), lambda: self.rename_page.emit(p))
-        m.addAction(icons.icon("download", col, 18), t("export_png"), lambda: self.export_page.emit(p))
+        m.addAction(icons.icon("download", col, 18), t("export_as"), lambda: self.export_page.emit(p))
+        m.addAction(icons.icon("download", col, 18), t("export_all_pdf"), self.export_all.emit)
         m.addSeparator()
         m.addAction(icons.icon("delete", col, 18), t("delete_note"), lambda: self.delete_page.emit(p))
         m.exec(self.list.viewport().mapToGlobal(pos))

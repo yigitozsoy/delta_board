@@ -13,7 +13,7 @@ from .canvas import Board, render_scene
 from .config import prefs, snapshot_dir
 from .i18n import t
 from .pages import NotesPanel
-from .theme import theme, current_name
+from .theme import theme, current_name, qcolor
 from .titlebar import TitleBar
 from .toolbar import ToolBar
 from .widgets import Divider, IconButton
@@ -58,7 +58,7 @@ class BoardArea(QWidget):
         zl = QHBoxLayout(self.zoom_box)
         zl.setContentsMargins(0, 0, 0, 0)
         zl.setSpacing(4)
-        self.btn_fit = IconButton("fit", t("fit_all") + " (F)", 34, 18)
+        self.btn_fit = IconButton("fit", t("fit_all") + " (Home)", 34, 18)
         self.btn_fit.clicked.connect(self.board.fit_all)
         self.zoom_chip = QPushButton("100%")
         self.zoom_chip.setObjectName("Chip")
@@ -68,6 +68,7 @@ class BoardArea(QWidget):
         self.zoom_chip.clicked.connect(lambda: self.board.set_zoom(1.0))
         zl.addWidget(self.btn_fit)
         zl.addWidget(self.zoom_chip)
+        self.toolbar.placed.connect(self._place_overlays)
         self.board.zoom_changed.connect(lambda z: self.zoom_chip.setText(f"{round(z * 100)}%"))
         self.board.content_changed.connect(self._update_hint)
 
@@ -76,23 +77,24 @@ class BoardArea(QWidget):
 
     def resizeEvent(self, e):
         self.board.setGeometry(self.rect())
-        self.toolbar.adjustSize()
-        sh = self.toolbar.sizeHint()
-        tw = min(sh.width(), self.width() - 16)
-        self.toolbar.resize(tw, sh.height())
-        self.toolbar.move((self.width() - tw) // 2, self.height() - sh.height() - 16)
+        self.toolbar.place(16)          # placed → _place_overlays
+        super().resizeEvent(e)
+
+    def _place_overlays(self):
+        """Yakınlaştırma çipi ve boş not ipucu, araç çubuğunun konumuna göre yerleşir."""
+        tb = self.toolbar.geometry()
         self.zoom_box.adjustSize()
         zx = self.width() - self.zoom_box.width() - 16
         zy = self.height() - self.zoom_box.height() - 22
-        # dar pencerede araç çubuğunun üstüne binmesin
-        if zx < self.toolbar.geometry().right() + 8:
-            zy = self.toolbar.y() - self.zoom_box.height() - 8
+        if self.toolbar.vertical and tb.left() > self.width() // 2:      # sağda dikey çubuk
+            zx = tb.left() - self.zoom_box.width() - 10
+        elif not self.toolbar.vertical and tb.top() > self.height() // 2 and zx < tb.right() + 8:
+            zy = tb.top() - self.zoom_box.height() - 8                  # dar pencerede alttaki çubuğa binmesin
         self.zoom_box.move(zx, zy)
         self.hint.setGeometry(0, 0, self.width(), self.height() - 80)
         for w in (self.hint, self.toolbar, self.zoom_box):
             w.raise_()
         self.board.toast_label.raise_()
-        super().resizeEvent(e)
 
 
 class MainWindow(QMainWindow):
@@ -150,6 +152,7 @@ class MainWindow(QMainWindow):
         self.panel.rename_page.connect(self.rename_page)
         self.panel.delete_page.connect(self.delete_page)
         self.panel.export_page.connect(self.export_page)
+        self.panel.export_all.connect(self.export_all_pdf)
         self.board.content_changed.connect(self._refresh_title)
         store.list_changed.connect(self._refresh_title)
         theme.changed.connect(lambda _: store.restyle_all())
@@ -158,6 +161,7 @@ class MainWindow(QMainWindow):
                         ("Ctrl+Shift+C", lambda: self.board.copy(only_image=True)), ("F11", self.toggle_fullscreen),
                         ("Ctrl+,", self.request_prefs.emit), ("Ctrl+Tab", lambda: self._cycle(1)),
                         ("Ctrl+Shift+Tab", lambda: self._cycle(-1)), ("F1", self.show_help),
+                        ("F2", lambda: self.rename_page(self.page) if self.page is not None else None),
                         ("Ctrl+B", lambda: self.set_panel(not self.panel.isVisible()))):
             sc = QShortcut(QKeySequence(seq), self)
             sc.activated.connect(fn)
@@ -220,8 +224,7 @@ class MainWindow(QMainWindow):
     def rename_page(self, p):
         if p is not self.page:
             self.open_page(p)
-        self.titlebar.title.setFocus()
-        self.titlebar.title.selectAll()
+        self.titlebar.title.begin_edit()
 
     def delete_page(self, p):
         r = QMessageBox.question(self, t("delete_note"), t("delete_confirm", name=p.display_title()))
@@ -243,22 +246,52 @@ class MainWindow(QMainWindow):
         if img is None:
             self.board.toast(t("nothing_to_copy"))
             return
+        from .export import file_filter, fix_ext, save_image
+        fmt = prefs.get("save_format", "png")
         name = _safe(p.display_title())
-        path, _ = QFileDialog.getSaveFileName(self, t("export_png"), os.path.join(snapshot_dir(), name + ".png"),
-                                              "PNG (*.png);;JPEG (*.jpg)")
+        path, flt = QFileDialog.getSaveFileName(self, t("export_as"), os.path.join(snapshot_dir(), name + "." + fmt),
+                                                file_filter(fmt))
         if path:
-            img.save(path)
-            self.board.toast(t("saved_to", p=os.path.basename(path)))
+            path = fix_ext(path, flt)
+            if save_image(img, path, qcolor("bg")):
+                self.board.toast(t("saved_to", p=os.path.basename(path)))
+            else:
+                self.board.toast(t("save_failed"))
+
+    def export_all_pdf(self):
+        """Tüm notlar tek PDF'te (en yeni not ilk sayfada)."""
+        from .export import export_pdf
+        imgs = []
+        for p in self.store.pages:
+            p.ensure_loaded()
+            img = render_scene(p.scene)
+            if img is not None:
+                imgs.append(img)
+        if not imgs:
+            self.board.toast(t("nothing_to_copy"))
+            return
+        default = os.path.join(snapshot_dir(), "delta " + datetime.now().strftime("%Y-%m-%d") + ".pdf")
+        path, _ = QFileDialog.getSaveFileName(self, t("export_all_pdf"), default, "PDF (*.pdf)")
+        if path:
+            if not path.lower().endswith(".pdf"):
+                path += ".pdf"
+            ok = export_pdf(imgs, path)
+            self.board.toast(t("saved_to", p=os.path.basename(path)) if ok else t("save_failed"), 2600)
 
     def save_png(self):
+        """Ctrl+S: Seçenekler'deki biçimde (PNG / JPEG / PDF) Resimler\\delta klasörüne hemen kaydeder."""
+        from .export import save_image
         img = render_scene(self.board.scene())
         if img is None:
             self.board.toast(t("nothing_to_copy"))
             return
+        fmt = prefs.get("save_format", "png")
         name = _safe(self.page.display_title()) + " " + datetime.now().strftime("%H.%M.%S")
-        path = os.path.join(snapshot_dir(), name + ".png")
-        img.save(path, "PNG")
-        self.board.toast(t("saved_to", p=path), 2600)
+        path = os.path.join(snapshot_dir(), name + "." + fmt)
+        if save_image(img, path, qcolor("bg")):
+            self.board.toast(t("saved_to", p=path), 2600)
+        else:
+            self.board.toast(t("save_failed"))
 
     def save_png_as(self):
         if self.page is not None:

@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PyQt6.QtCore import Qt, QPoint, QPointF, QEvent, QRect, QRectF  # noqa: E402
 from PyQt6.QtGui import QMouseEvent, QImage, QColor, QPixmap, QKeyEvent, QWheelEvent  # noqa: E402
-from PyQt6.QtWidgets import QApplication  # noqa: E402
+from PyQt6.QtWidgets import QApplication, QScrollArea  # noqa: E402
 
 SHOTS = sys.argv[sys.argv.index("--shots") + 1] if "--shots" in sys.argv else None
 steps = []
@@ -81,6 +81,7 @@ def main():
         prefs.set("hotkey_" + n, "")  # testte gerçek kısayolları kapmayalım
     prefs.set("video_dir", os.path.join(TMP, "videos"))
     prefs.set("record_mic", "")
+    prefs.set("check_updates", False)   # testte ağa çıkma
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     from deltaapp.app import DeltaApp
@@ -139,6 +140,18 @@ def main():
          and b.editing_text() is None)
     pump(5)
     step("otomatik başlık", win.page.auto.startswith("Toplantı notu"))
+    tt = win.titlebar.title
+    mouse(tt, PRESS, QPoint(10, 10), L, L)
+    mouse(tt, REL, QPoint(10, 10), L, NB)
+    pump()
+    step("not adı: tek tık düzenlemeye açmaz, kutu dar", not tt.editing() and tt.width() <= tt.MAX_W)
+    mouse(tt, DBL, QPoint(10, 10), L, L)
+    pump()
+    step("not adı: çift tık düzenler", tt.editing() and tt.hasFocus())
+    key(tt, Qt.Key.Key_Escape)
+    b.setFocus()
+    pump()
+    step("not adı: Esc / odak kaybı kilitler", not tt.editing())
 
     # Enter: imlecin olduğu yere yazı
     b.setFocus()
@@ -146,6 +159,31 @@ def main():
     step("Enter yazı kutusu açar", b.editing_text() is not None)
     key(vp, Qt.Key.Key_Escape)
     step("boş yazı kutusu iz bırakmaz", len([i for i in sc.content_items() if isinstance(i, I.TextItem)]) == 1)
+
+    # rakam tuşları araç seçer, Shift+rakam renk (gerçek sanal tuş koduyla)
+    def vkey(w, k, vk, text="", mods=NOMOD):
+        for typ in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
+            QApplication.sendEvent(w, QKeyEvent(typ, k, mods, 0, vk, 0, text))
+        pump()
+    got_tools = []
+    for k, vk in ((Qt.Key.Key_3, 0x33), (Qt.Key.Key_8, 0x38), (Qt.Key.Key_0, 0x30), (Qt.Key.Key_1, 0x31)):
+        vkey(vp, k, vk, chr(vk))
+        got_tools.append(state.tool)
+    step("1-9/0 araç seçer (3 ok, 8 lazer, 0 seç, 1 kalem)", got_tools == ["arrow", "laser", "select", "pen"])
+    vkey(vp, Qt.Key.Key_Exclam, 0x32, "'", Qt.KeyboardModifier.ShiftModifier)   # Shift+2 (Türkçe klavyede ')
+    step("Shift+2 kırmızı renk", state.color == "#ff453a" and state.tool == "pen")
+    state.set_color("auto")
+    # hızlı yazı: harfe basınca imlecin olduğu yerde yazı başlar
+    n_txt = len([i for i in sc.content_items() if isinstance(i, I.TextItem)])
+    b.setFocus()
+    key(vp, Qt.Key.Key_M, "M")
+    ed = b.editing_text()
+    for ch in "erhaba":
+        key(vp, 0, ch)
+    txt = ed.toPlainText() if ed is not None else ""
+    key(vp, Qt.Key.Key_Escape)
+    step("harfe basınca hızlı yazı (Merhaba)", txt == "Merhaba" and
+         len([i for i in sc.content_items() if isinstance(i, I.TextItem)]) == n_txt + 1)
 
     # görsel yapıştır
     img = QImage(320, 200, QImage.Format.Format_RGB32)
@@ -209,7 +247,7 @@ def main():
     h0 = b.horizontalScrollBar().value()
     drag(vp, [QPoint(600, 400), QPoint(550, 400), QPoint(500, 400)], btn=M)
     step("orta tuşla kaydırma", b.horizontalScrollBar().value() != h0)
-    key(vp, Qt.Key.Key_F)
+    key(vp, Qt.Key.Key_Home)
     step("F hepsini sığdırır", all(vp.rect().contains(b.mapFromScene(it.sceneBoundingRect().center()))
                                    for it in sc.content_items()))
 
@@ -225,8 +263,11 @@ def main():
 
     # renk tuşu seçimi boyar
     tgt.setSelected(True)
-    key(vp, Qt.Key.Key_6)
-    step("seçiliyken renk tuşu boyar", tgt.color_name == "#3ea6ff")
+    tool_before = state.tool
+    QApplication.sendEvent(vp, QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Ampersand, Qt.KeyboardModifier.ShiftModifier,
+                                         0, 0x36, 0, "&"))
+    pump()
+    step("seçiliyken Shift+6 boyar, araç değişmez", tgt.color_name == "#3ea6ff" and state.tool == tool_before)
     key(vp, Qt.Key.Key_Z, "", CTRL)
     step("boyama geri alınır", tgt.color_name == "auto")
     sc.clearSelection()
@@ -418,10 +459,16 @@ def main():
     d.hotkeys.unregister_all()
 
     from deltaapp.dialogs import PrefsDialog, HelpDialog
-    pd = PrefsDialog(win, d.hotkeys)
+    pd = PrefsDialog(win, d.hotkeys, updater=getattr(d, "updater", None))
     pd.show()
     pump(5)
     shot(pd, "07_secenekler")
+    sa = pd.findChild(QScrollArea)
+    if SHOTS and sa is not None:
+        for i, frac in enumerate((0.33, 0.66, 1.0)):
+            sa.verticalScrollBar().setValue(int(sa.verticalScrollBar().maximum() * frac))
+            pump(3)
+            shot(pd, f"07_secenekler_{i + 2}")
     pd.close()
     hd = HelpDialog(win)
     hd.show()
@@ -429,6 +476,85 @@ def main():
     shot(hd, "08_yardim")
     hd.close()
     step("seçenekler ve yardım pencereleri açıldı", True)
+
+    # ---- 1.1.0: OCR, PNG/JPEG/PDF, araç çubuğu konumu, tahta kısayolları, güncelleme sürüm karşılaştırması
+    from PyQt6.QtCore import QEventLoop, QTimer
+    from PyQt6.QtGui import QPainter, QFont
+    from deltaapp import ocr, export
+    oimg = QImage(560, 120, QImage.Format.Format_RGB32)
+    oimg.fill(QColor("white"))
+    pt = QPainter(oimg)
+    f = QFont("Segoe UI")
+    f.setPixelSize(30)
+    pt.setFont(f)
+    pt.setPen(QColor("black"))
+    pt.drawText(QRect(10, 10, 540, 100), 0, "Çarşamba toplantısı 2026")
+    pt.end()
+    got_txt = []
+    loop = QEventLoop()
+    ocr.read_text(oimg, lambda x: (got_txt.append(x), loop.quit()), lambda m: (got_txt.append("HATA " + m), loop.quit()))
+    QTimer.singleShot(20000, loop.quit)
+    loop.exec()
+    print("   OCR:", got_txt)
+    step("OCR Türkçe yazıyı okur", bool(got_txt) and "Çarşamba" in got_txt[0] and "2026" in got_txt[0])
+
+    from deltaapp.canvas import render_scene
+    rimg = render_scene(win.board.scene())
+    outs = {}
+    for ext in ("png", "jpg", "pdf"):
+        path = os.path.join(TMP, "disa." + ext)
+        ok = export.save_image(rimg, path, QColor("#0f0f0f"))
+        outs[ext] = ok and os.path.exists(path) and os.path.getsize(path) > 500
+    with open(os.path.join(TMP, "disa.pdf"), "rb") as fh:
+        is_pdf = fh.read(5) == b"%PDF-"
+    step("PNG / JPEG / PDF kaydı", all(outs.values()) and is_pdf)
+    multi = os.path.join(TMP, "hepsi.pdf")
+    ok = export.export_pdf([rimg, rimg], multi)
+    with open(multi, "rb") as fh:
+        pdf = fh.read()
+    step("birden çok not tek PDF (2 sayfa)", ok and pdf.count(b"/Type /Page\n") + pdf.count(b"/Type /Page\r") +
+         pdf.count(b"/Type /Page ") + pdf.count(b"/Type /Page>") >= 2)
+    step("dışa aktarma: uzantı ekleme", export.fix_ext("a", "PDF (*.pdf)") == "a.pdf" and
+         export.fix_ext("b.jpeg", "") == "b.jpeg")
+
+    from deltaapp.toolbar import set_position
+    tb = win.area.toolbar
+    set_position("left")
+    pump(5)
+    left_ok = tb.vertical and tb.x() < 40 and tb.height() > tb.width()
+    shot(win, "12_dikey_arac_cubugu")
+    set_position("top")
+    pump(5)
+    top_ok = (not tb.vertical) and tb.y() < 40
+    # sürükle-bırak: sağ kenara taşı
+    mouse(tb, PRESS, QPoint(3, tb.height() // 2), L, L)
+    tgt = tb.mapFromGlobal(win.area.mapToGlobal(QPoint(win.area.width() - 5, win.area.height() // 2)))
+    mouse(tb, MOVE, tgt, NB, L)
+    mouse(tb, REL, tgt, L, NB)
+    pump(5)
+    right_ok = tb.vertical and tb.x() > win.area.width() // 2
+    set_position("bottom")
+    pump(5)
+    step("araç çubuğu: sol/üst/sürükleyip sağ/alt", left_ok and top_ok and right_ok and not tb.vertical and
+         tb.y() > win.area.height() // 2)
+
+    from deltaapp.tools import set_tool_key, reset_tool_keys, tool_key
+    set_tool_key("laser", "Q")
+    vkey(vp, Qt.Key.Key_Q, 0x51, "q")
+    q_ok = state.tool == "laser" and b.editing_text() is None
+    set_tool_key("pen", "8")      # 8 lazerdeydi: lazerden kalkmalı değil (lazer Q), pen 8 olur
+    vkey(vp, Qt.Key.Key_8, 0x38, "8")
+    swap_ok = state.tool == "pen" and tool_key("pen") == "8"
+    set_tool_key("eraser", "8")   # aynı tuş: kalemden kaldırılır
+    steal_ok = tool_key("pen") == "" and tool_key("eraser") == "8"
+    reset_tool_keys()
+    step("tahta kısayolları özelleştirilir (Q→lazer, çakışma kaldırılır, sıfırlanır)",
+         q_ok and swap_ok and steal_ok and tool_key("pen") == "1" and tool_key("laser") == "8")
+    state.set_tool("pen")
+
+    from deltaapp.updater import is_newer, parse_version
+    step("güncelleme: sürüm karşılaştırma", is_newer("v1.2.0", "1.1.0") and not is_newer("1.1.0", "1.1.0")
+         and not is_newer("1.0.9", "1.1.0") and parse_version("v2") == (2, 0, 0))
 
     win.quit_app()
     pump()

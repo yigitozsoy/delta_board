@@ -11,6 +11,23 @@ gamma player ile aynı görünüm (AMOLED siyah, gri vurgu, 10 tema).
 - **İğnele** (alıntı çubuğu / Ctrl+T / F3): alıntı ekranda üstte kalır; sürükle taşı, tekerlek büyüt, çift tık kapat
 - **Ekran videosu** (Win+Shift+E): alanı seç → "Kaydı başlat"; aynı kısayol ya da "Kaydı durdur" bitirir, MP4 Videolar\delta'ya gider
 - **Hızlı not** (Win+Shift+N): delta öne gelir, boş not açılır, imleç yazmaya hazır
+- **Hızlı yazı**: tahtada bir harfe bas, imlecin olduğu yere hemen yazı başlar
+- **Metni kopyala (OCR)**: alıntıdaki / görseldeki yazıyı okuyup panoya kopyalar (Windows'un kendi tanıması, Türkçe)
+- **Kaydet**: PNG, JPEG ya da PDF; tüm notları tek PDF yapabilirsin
+- **Özelleştirme**: araç tuşları değiştirilebilir; araç çubuğu alta, üste ya da dikey olarak sola / sağa alınabilir
+- **Güncelleme**: yeni sürüm çıkınca haber verir (Seçenekler'den kapatılabilir)
+
+## Klavye (tahta)
+| | |
+|---|---|
+| 1 · 2 | Kalem · fosforlu |
+| 3 · 4 · 5 · 6 | Ok · çizgi · dikdörtgen · elips |
+| 7 · 8 · 9 · 0 | Yazı · lazer · silgi · seç |
+| Harfler | İmlecin yerine hemen yazı |
+| Shift+1 – 7 | Renkler |
+| Ctrl+↑ / ↓ · Ctrl+I · Home | Kalınlık · görsel ekle · hepsini sığdır |
+
+Araç tuşları Seçenekler › Tahta kısayolları'ndan değiştirilebilir.
 
 ## Fare
 | | |

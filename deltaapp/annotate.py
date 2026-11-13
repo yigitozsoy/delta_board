@@ -54,11 +54,7 @@ class AnnotateOverlay(QWidget):
         super().resizeEvent(e)
 
     def _place_toolbar(self):
-        self.toolbar.adjustSize()
-        tw = min(self.toolbar.sizeHint().width(), self.width() - 16)
-        self.toolbar.resize(tw, self.toolbar.sizeHint().height())
-        self.toolbar.move((self.width() - tw) // 2, self.height() - self.toolbar.height() - 28)
-        self.toolbar.raise_()
+        self.toolbar.place(28)
 
     # --- aç / kapa
     def toggle(self):

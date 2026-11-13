@@ -66,6 +66,7 @@ class DeltaApp(QObject):
         self.capture.finished.connect(self._capture_done)
         self.capture.record.connect(self._begin_record)
         self.capture.pinned.connect(lambda d: self.pins.add(*d))
+        self.capture.ocr_req.connect(self.ocr_snip)
         self.pins.to_delta.connect(self.win.receive_image)
         self.pins.saved.connect(lambda p: self.notify(self._t("saved_to", p=os.path.basename(p))))
         self.recorder.saved.connect(self._record_saved)
@@ -79,6 +80,12 @@ class DeltaApp(QObject):
         self.apply_hotkeys()
         if not start_hidden:
             self.win.show()
+        # güncelleme denetimi: açılıştan biraz sonra, günde en fazla bir kez
+        from .updater import UpdateChecker
+        self.updater = UpdateChecker(self)
+        self.updater.found.connect(self._update_found)
+        self._update_page = None
+        QTimer.singleShot(6000, self.updater.check_auto)
 
     def _t(self, k, **kw):
         from .i18n import t
@@ -190,7 +197,13 @@ class DeltaApp(QObject):
         if self.tray is not None:
             self.act_rec.setText(self._t("rec_stop"))
 
+    def _update_found(self, ver, page):
+        self._update_page = page
+        self._last_video = None
+        self.notify(self._t("update_notify", v=ver), self._t("update_notify_sub"))
+
     def _record_saved(self, path):
+        self._update_page = None
         self._last_video = path
         self.notify(self._t("rec_saved_title"), self._t("rec_saved", p=os.path.basename(path)))
 
@@ -199,7 +212,13 @@ class DeltaApp(QObject):
             self.act_rec.setText(getattr(self, "_rec_text", self._t("tray_record")))
 
     def _message_clicked(self):
-        """Bildirime tıklanınca son video Gezgin'de seçili açılır."""
+        """Bildirime tıklanınca: yeni sürüm sayfası açılır ya da son video Gezgin'de seçili gösterilir."""
+        if getattr(self, "_update_page", None):
+            from PyQt6.QtGui import QDesktopServices
+            from PyQt6.QtCore import QUrl
+            QDesktopServices.openUrl(QUrl(self._update_page))
+            self._update_page = None
+            return
         if self._last_video and os.path.exists(self._last_video):
             import subprocess
             subprocess.Popen(["explorer", "/select,", os.path.normpath(self._last_video)])
@@ -213,8 +232,21 @@ class DeltaApp(QObject):
     def show_prefs(self):
         from .dialogs import PrefsDialog
         parent = self.win if self.win.isVisible() else None
-        d = PrefsDialog(parent, self.hotkeys, self.apply_hotkeys)
+        d = PrefsDialog(parent, self.hotkeys, self.apply_hotkeys, getattr(self, "updater", None))
         d.exec()
+
+    def ocr_snip(self, pm):
+        """Alıntıdaki yazıyı oku, panoya kopyala, bildirimle göster."""
+        from .ocr import read_text
+
+        def done(text):
+            if text:
+                QApplication.clipboard().setText(text)
+                first = text.splitlines()[0][:60]
+                self.notify(self._t("ocr_done", n=text.count("\n") + 1), first)
+            else:
+                self.notify(self._t("ocr_empty"))
+        read_text(pm.toImage(), done, lambda m: self.notify(self._t("ocr_failed"), m))
 
     def handle_message(self, cmd):
         if cmd == "show":
@@ -259,7 +291,7 @@ def _selfcheck():
     import importlib
     from .config import asset
     for m in ("window", "canvas", "items", "pages", "capture", "annotate", "recorder", "pin", "hotkeys",
-              "dialogs", "titlebar", "toolbar", "theme", "icons", "widgets", "winident"):
+              "dialogs", "titlebar", "toolbar", "theme", "icons", "widgets", "winident", "ocr", "export", "updater"):
         importlib.import_module("deltaapp." + m)
     from .recorder import find_ffmpeg
     from PyQt6.QtGui import QGuiApplication, QImage

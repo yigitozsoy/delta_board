@@ -29,6 +29,11 @@ DEFAULTS = {
     "theme": "amoled",
     "accent": "gray",
     "grid": "dots",                 # dots | lines | none
+    "save_format": "png",           # Ctrl+S biçimi: png | jpg | pdf
+    "toolbar_pos": "bottom",        # bottom | top | left | right
+    "tool_keys": {},                # kullanıcının değiştirdiği araç tuşları (boş = varsayılan rakamlar)
+    "check_updates": True,
+    "last_update_check": 0,
     "wheel": "zoom",                # zoom | scroll  (fare tekerleği)
     "sidebar_visible": True,
     "pinned": False,

@@ -35,6 +35,8 @@ $Dist = Join-Path $Root "build\dist"
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller başarısız" }
 $App = Join-Path $Dist "delta"
 
+Copy-Item LICENSE (Join-Path $App "LICENSE.txt") -Force
+
 Step "Paket denetimi (delta.exe --selfcheck)"
 $p = Start-Process (Join-Path $App "delta.exe") -ArgumentList "--selfcheck" -Wait -PassThru
 if ($p.ExitCode -ne 0) { throw "selfcheck başarısız (çıkış kodu $($p.ExitCode))" }

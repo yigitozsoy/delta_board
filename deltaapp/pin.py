@@ -153,6 +153,8 @@ class PinWindow(QWidget):
         ctrl = e.modifiers() & Qt.KeyboardModifier.ControlModifier
         if k in (Qt.Key.Key_Escape, Qt.Key.Key_Delete):
             self.close()
+        elif ctrl and e.modifiers() & Qt.KeyboardModifier.ShiftModifier and k == Qt.Key.Key_C:
+            self.ocr()
         elif ctrl and k == Qt.Key.Key_C:
             self.copy()
         elif ctrl and k == Qt.Key.Key_S:
@@ -175,6 +177,7 @@ class PinWindow(QWidget):
             (t("copy") + "\tCtrl+C", self.copy),
             (t("save") + "\tCtrl+S", self.save),
             (t("cap_to_delta"), self.send),
+            (t("ocr") + "\tCtrl+Shift+C", self.ocr),
             None,
             (t("pin_reset") + "\t0", lambda: self.set_scale(1.0)),
         ]
@@ -209,6 +212,18 @@ class PinWindow(QWidget):
     def copy(self):
         QApplication.clipboard().setPixmap(self.plain())
         self._show_chip("✓ " + t("copied"))
+
+    def ocr(self):
+        from .ocr import read_text
+        self._show_chip(t("ocr_busy"))
+
+        def done(text):
+            if text:
+                QApplication.clipboard().setText(text)
+                self._show_chip("✓ " + t("ocr_done", n=text.count("\n") + 1))
+            else:
+                self._show_chip(t("ocr_empty"))
+        read_text(self.plain().toImage(), done, lambda _m: self._show_chip(t("ocr_failed")))
 
     def save(self):
         path = os.path.join(snapshot_dir(), "delta " + datetime.now().strftime("%Y-%m-%d %H.%M.%S") + ".png")

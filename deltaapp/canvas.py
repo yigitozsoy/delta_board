@@ -23,7 +23,7 @@ from . import icons
 from .config import prefs
 from .i18n import t
 from .theme import theme, qcolor, color as tcolor
-from .tools import state, SHAPES, COLORS, ICON, KEY
+from .tools import state, SHAPES, COLORS, ICON, tool_key, tool_for_key, key_name
 
 MIME_ITEMS = "application/x-delta-items"
 IMAGE_EXT = (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".ico", ".tif", ".tiff", ".jfif", ".avif", ".heic")
@@ -826,6 +826,11 @@ class Board(QGraphicsView):
         ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
         shift = bool(mods & Qt.KeyboardModifier.ShiftModifier)
         K = Qt.Key
+        alt = bool(mods & Qt.KeyboardModifier.AltModifier)
+        if ctrl and alt and e.text() and e.text().isprintable() and not e.text().isspace():
+            self.scene().clearSelection()   # AltGr ile yazılan @ € { } gibi işaretler de yazı başlatır
+            self.new_text(self._cursor_scene(), e.text())
+            return
         if ctrl:
             if k == K.Key_Z:
                 self.redo() if shift else self.undo()
@@ -847,41 +852,41 @@ class Board(QGraphicsView):
                 self.zoom_by(1.25, False)
             elif k == K.Key_Minus:
                 self.zoom_by(0.8, False)
+            elif k in (K.Key_I, 0x131):    # Türkçe klavyede ı
+                self.insert_image_dialog()
+            elif k == K.Key_G and not self.transparent:
+                self.cycle_grid()
+            elif k in (K.Key_Up, K.Key_Down):
+                state.nudge(1 if k == K.Key_Up else -1)
+                self.toast(t("size_toast", n=f"{state.width:g}"), 700)
             else:
                 e.ignore()
             return
         if mods & Qt.KeyboardModifier.AltModifier:
             e.ignore()
             return
-        tools = {K.Key_V: "select", K.Key_P: "pen", K.Key_B: "pen", K.Key_H: "hl", K.Key_K: "laser",
-                 K.Key_E: "eraser", K.Key_L: "line", K.Key_A: "arrow", K.Key_R: "rect", K.Key_O: "ellipse",
-                 K.Key_T: "text"}
-        if k in tools and not e.isAutoRepeat():
-            state.set_tool(tools[k])
+        # araç tuşları (varsayılan 1-9 / 0, Seçenekler'den değişir); Shift+1-7 renkler (sanal tuş kodu: düzenden bağımsız)
+        vk = e.nativeVirtualKey()
+        digit = None
+        if 0x30 <= vk <= 0x39:
+            digit = vk - 0x30
+        elif 0x60 <= vk <= 0x69:          # sayı tuş takımı
+            digit = vk - 0x60
+        elif vk == 0 and K.Key_0 <= k <= K.Key_9:   # sanal tuş kodu olmayan (yapay) olaylar
+            digit = k - K.Key_0
+        if digit is not None and shift:
+            if 1 <= digit <= len(COLORS):
+                self.apply_color(COLORS[digit - 1])
             return
-        if K.Key_1 <= k <= K.Key_7:
-            self.apply_color(COLORS[k - K.Key_1])
+        tool = tool_for_key(key_name(e))
+        if tool is not None:
+            if not e.isAutoRepeat():
+                state.set_tool(tool)
             return
-        if k in (K.Key_BracketLeft, K.Key_Comma, K.Key_Minus):
-            state.nudge(-1)
-            self.toast(t("size_toast", n=f"{state.width:g}"), 700)
-            return
-        if k in (K.Key_BracketRight, K.Key_Period, K.Key_Plus, K.Key_Asterisk):
-            state.nudge(1)
-            self.toast(t("size_toast", n=f"{state.width:g}"), 700)
-            return
-        if k == K.Key_I or k == 0x131:  # Türkçe klavyede ı
-            self.insert_image_dialog()
-            return
-        if k == K.Key_F:
+        if digit is not None:
+            return    # atanmamış rakam: yazı başlatmasın
+        if k == K.Key_Home:
             self.fit_all()
-            return
-        if k == K.Key_G and not self.transparent:
-            order = ["dots", "lines", "none"]
-            cur = prefs.get("grid", "dots")
-            prefs.set("grid", order[(order.index(cur) + 1) % 3] if cur in order else "dots")
-            self.resetCachedContent()
-            self.viewport().update()
             return
         if k in (K.Key_Delete, K.Key_Backspace):
             self.delete_selection()
@@ -904,7 +909,20 @@ class Board(QGraphicsView):
             else:
                 self.escape_pressed.emit()
             return
+        # hızlı yazı: herhangi bir harfe / işarete basınca imlecin olduğu yerde yazı kutusu açılır
+        ch = e.text()
+        if ch and ch.isprintable() and not ch.isspace():
+            self.scene().clearSelection()
+            self.new_text(self._cursor_scene(), ch)
+            return
         super().keyPressEvent(e)
+
+    def cycle_grid(self):
+        order = ["dots", "lines", "none"]
+        cur = prefs.get("grid", "dots")
+        prefs.set("grid", order[(order.index(cur) + 1) % 3] if cur in order else "dots")
+        self.resetCachedContent()
+        self.viewport().update()
 
     def keyReleaseEvent(self, e):
         if e.key() == Qt.Key.Key_Space and not e.isAutoRepeat():
@@ -1056,6 +1074,19 @@ class Board(QGraphicsView):
             return done > 0
         return False
 
+    def ocr_image(self, it):
+        """Görseldeki yazıyı okuyup panoya kopyalar (Windows OCR)."""
+        from .ocr import read_text
+        self.toast(t("ocr_busy"), 1200)
+
+        def done(text):
+            if text:
+                QApplication.clipboard().setText(text)
+                self.toast(t("ocr_done", n=text.count("\n") + 1), 1800)
+            else:
+                self.toast(t("ocr_empty"), 1800)
+        read_text(it.pixmap().toImage(), done, lambda _m: self.toast(t("ocr_failed"), 1800))
+
     # ------------------------------------------------------------ görsel boyutlandırma
     HANDLE_HIT = 14  # köşeye bu kadar ekran pikseli yakınsa tutamaç sayılır
 
@@ -1164,6 +1195,7 @@ class Board(QGraphicsView):
                     QApplication.clipboard().setPixmap(target.pixmap())
                     self.toast(t("copied"))
                 m.addAction(ic("copy"), t("copy_image"), copy_img)
+                m.addAction(ic("text"), t("ocr"), lambda: self.ocr_image(target))
 
                 def pick():
                     self.scene().clearSelection()
@@ -1173,11 +1205,11 @@ class Board(QGraphicsView):
             m.addAction(ic("delete"), t("delete_this"), lambda: self.delete_item(target))
             m.addSeparator()
         for tool in ("pen", "hl", "laser", "eraser", "text", "select"):
-            a = m.addAction(ic(ICON[tool]), f"{t('tool_' + tool)}\t{KEY[tool]}")
+            a = m.addAction(ic(ICON[tool]), f"{t('tool_' + tool)}\t{tool_key(tool)}")
             a.triggered.connect(lambda _=False, x=tool: state.set_tool(x))
         sh = m.addMenu(ic("shapes"), t("shapes"))
         for tool in SHAPES:
-            a = sh.addAction(ic(ICON[tool]), f"{t('tool_' + tool)}\t{KEY[tool]}")
+            a = sh.addAction(ic(ICON[tool]), f"{t('tool_' + tool)}\t{tool_key(tool)}")
             a.triggered.connect(lambda _=False, x=tool: state.set_tool(x))
         m.addSeparator()
         m.addAction(ic("text"), t("write_here") + "\tEnter", lambda: self.new_text(sp))

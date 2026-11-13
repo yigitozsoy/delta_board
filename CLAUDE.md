@@ -8,9 +8,10 @@ kuralları burada da geçerli: Türkçe, sade varsayılanlar, gri vurgu, mor yok
 - Python 3.14 · PyQt6 (Pillow isteğe bağlı) · yalnızca Windows 10/11
 - Sürüm: `deltaapp/__init__.py` → `__version__`
 - Repo: https://github.com/yigitozsoy/delta_board (herkese açık; sürümler Releases'ta, kurulum + zip).
-  Commit kimliği yerel: `Yiğit Özsoy <yigitozsoy@users.noreply.github.com>`. Push / etiket / release öncesi onay al.
+  Commit kimliği yerel: `Yiğit Özsoy <yigitozsoy@users.noreply.github.com>`. Push / etiket / release öncesi onay al
+  (kullanıcı "commit et githuba koy, sorma" dediyse doğrudan yap).
 - Çalıştır: `python main.py` · tepside sessiz başlat: `python main.py --tray`
-- Test: `python tests/smoke_test.py` (57 adım, gerçek 2 sn'lik ffmpeg kaydı dahil; gerçek arayüz; `--shots KLASÖR` ekran görüntüsü alır)
+- Test: `python tests/smoke_test.py` (70 adım, gerçek 2 sn'lik ffmpeg kaydı ve gerçek OCR dahil; gerçek arayüz; `--shots KLASÖR` ekran görüntüsü alır)
   PowerShell'de Türkçe çıktı için `$env:PYTHONIOENCODING="utf-8"`.
 - Lint: `python -m pyflakes deltaapp tests` temiz olmalı.
 - Derleme: `powershell -ExecutionPolicy Bypass -File packaging\build.ps1` → `build\dist\delta\delta.exe` (PyInstaller,
@@ -26,11 +27,14 @@ deltaapp/
   window.py           ana pencere (çerçevesiz, Windows Snap — gamma ile aynı nativeEvent kodu)
   canvas.py           Board (QGraphicsView): araçlar, fare/klavye, silgi, geri al komutları, render_scene
   items.py            StrokeItem (kalem/fosforlu/şekiller), TextItem, ImageItem, LaserItem, DeltaScene, to/from_dict
-  tools.py            ortak araç durumu (araç, renk, kalınlık) — ana pencere ve ekrana çiz paylaşır
-  toolbar.py          alttaki yüzen araç çubuğu
+  tools.py            ortak araç durumu (araç, renk, kalınlık) + araç tuşları (KEY varsayılan, prefs tool_keys)
+  toolbar.py          yüzen araç çubuğu: alt/üst yatay, sol/sağ dikey (prefs toolbar_pos; sürükle-bırak, sağ tık)
   pages.py            notlar: Page (sahne + QUndoStack), NoteStore (otomatik kayıt), NotesPanel (sağ liste)
   capture.py          ekran alıntısı katmanı (ekran başına bir pencere, sahte görüntüyle test edilir; mode snip|record)
   winident.py         görev çubuğu kimliği: AppUserModel ID + pencereye ad/logo/yeniden açma komutu ("Python" yazmasın)
+  ocr.py              yazı tanıma: Windows.Media.Ocr, PowerShell 5.1 + QProcess (stdin boş, iş _ACTIVE'de tutulur)
+  export.py           PNG / JPEG / PDF kaydetme, tüm notlar tek PDF (QPdfWriter)
+  updater.py          GitHub releases/latest denetimi (günde 1, prefs check_updates)
   pin.py              ekrana iğnelenen alıntı (PinWindow, her zaman üstte; PinManager)
   recorder.py         ekran videosu: ffmpeg gdigrab → MP4 (libx264), kırmızı çerçeve + durdur çubuğu
   annotate.py         ekrana çiz katmanı (saydam, her zaman üstte; "fareyi bırak" = WS_EX_TRANSPARENT)
@@ -55,4 +59,10 @@ Veriler: `%LOCALAPPDATA%\delta\` → `preferences.json`, `notes\<id>.json` + `<i
 - **Video**: ffmpeg `imageio_ffmpeg` paketinden gelir; kayıt stdin'e "q" yazılarak durdurulur (dosya düzgün kapanır).
   Çerçeve ve çubuk `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` ile videoya girmez; H.264 çift boyut ister.
   Qt'de ekran kökeni yerel piksel, boyutlar ölçekli: fiziksel x = geo.x() + sel.x*dpr.
+- **Klavye**: araçlar rakamlarda (1 kalem … 0 seç), Shift+1–7 renk (sanal tuş kodu, Türkçe düzenden bağımsız),
+  atanmamış harfe basınca imlecin yerine yazı başlar (`Board.keyPressEvent` → `new_text`). Eski harf kısayolları
+  (F, G, I, [ ]) Home / Ctrl+G / Ctrl+I / Ctrl+↑↓ oldu.
+- **Not adı kutusu** kilitli (`titlebar.NoteTitle`): tek tıkla sürükleme pencereyi taşır, çift tık / F2 düzenler.
+- Bash aracında heredoc içindeki `\` karakterleri bozulabiliyor: ters eğik çizgili düzenlemeleri Edit / Write
+  ile ya da betiği dosyaya yazıp çalıştırarak yap.
 - Test **gerçek tercihlere dokunmaz** (LOCALAPPDATA geçici klasör) ve kısayolları boşaltır; ekranı yakalamaz.

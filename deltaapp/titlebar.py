@@ -1,10 +1,86 @@
 """Üst çubuk (gamma ile aynı düzen): solda logo + delta + •••, ortada not başlığı, sağda işlemler ve pencere düğmeleri."""
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QLineEdit, QToolButton, QSizePolicy
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QLineEdit, QToolButton
 
 from .i18n import t
 from .theme import theme, tinted_logo, current_name
 from .widgets import IconButton
+
+
+class NoteTitle(QLineEdit):
+    """Not başlığı: yazı kadar geniş, kilitli. Tek tıkla sürükleyince pencere taşınır (yanlışlıkla düzenlenmez);
+    çift tık ya da F2 ile adı değiştirilir."""
+    MIN_W, MAX_W = 90, 300
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setReadOnly(True)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setCursor(Qt.CursorShape.ArrowCursor)
+        self.textChanged.connect(self._fit)
+        self._fit()
+
+    def _fit(self, *_):
+        fm = self.fontMetrics()
+        txt = self.text() or self.placeholderText()
+        w = fm.horizontalAdvance(txt) + 36
+        self.setFixedWidth(max(self.MIN_W, min(self.MAX_W, w)))
+
+    def setPlaceholderText(self, text):
+        super().setPlaceholderText(text)
+        self._fit()
+
+    def editing(self):
+        return not self.isReadOnly()
+
+    def begin_edit(self):
+        self.setReadOnly(False)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setCursor(Qt.CursorShape.IBeamCursor)
+        self.setMaximumWidth(self.MAX_W)
+        self.setMinimumWidth(self.MAX_W)   # düzenlerken uzun ad yazılabilsin
+        self.setFocus()
+        self.selectAll()
+
+    def end_edit(self):
+        self.setReadOnly(True)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setCursor(Qt.CursorShape.ArrowCursor)
+        self.deselect()
+        self.setCursorPosition(0)
+        self._fit()
+
+    def mousePressEvent(self, e):
+        if not self.editing():
+            if e.button() == Qt.MouseButton.LeftButton and not self.window().isFullScreen():
+                h = self.window().windowHandle()
+                if h:
+                    h.startSystemMove()
+            e.accept()
+            return
+        super().mousePressEvent(e)
+
+    def mouseDoubleClickEvent(self, e):
+        if not self.editing() and e.button() == Qt.MouseButton.LeftButton:
+            self.begin_edit()
+            return
+        super().mouseDoubleClickEvent(e)
+
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key.Key_Escape and self.editing():
+            self.setText(self._orig if hasattr(self, "_orig") else self.text())
+            self.clearFocus()
+            return
+        super().keyPressEvent(e)
+
+    def focusInEvent(self, e):
+        self._orig = self.text()
+        super().focusInEvent(e)
+
+    def focusOutEvent(self, e):
+        super().focusOutEvent(e)
+        if self.editing():
+            self.end_edit()
 
 
 class TitleBar(QWidget):
@@ -51,17 +127,14 @@ class TitleBar(QWidget):
         lay.addLayout(box)
 
         lay.addStretch(1)
-        self.title = QLineEdit(self)
+        self.title = NoteTitle(self)
         self.title.setObjectName("NoteTitle")
-        self.title.setFixedHeight(36)
-        self.title.setMinimumWidth(120)
-        self.title.setMaximumWidth(420)
+        self.title.setFixedHeight(32)
         self.title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.title.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.title.setToolTip(t("rename_tip"))
         self.title.editingFinished.connect(self._title_done)
         self.title.returnPressed.connect(lambda: self.title.clearFocus())
-        lay.addWidget(self.title, 3)
+        lay.addWidget(self.title, 0)
         lay.addStretch(1)
 
         self.btn_new = IconButton("note_add", t("new_note") + " (Ctrl+N)", 40, 22)
@@ -90,7 +163,8 @@ class TitleBar(QWidget):
         theme.changed.connect(lambda _: self.update_theme_icon())
 
     def _title_done(self):
-        self.title_edited.emit(self.title.text())
+        if self.title.editing() or self.title.hasFocus():
+            self.title_edited.emit(self.title.text())
 
     def set_title(self, text, placeholder):
         if not self.title.hasFocus():

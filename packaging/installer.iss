@@ -27,6 +27,7 @@ OutputBaseFilename=delta-setup-{#AppVersion}
 SetupIconFile=..\deltaapp\assets\logo.ico
 UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName}
+LicenseFile=..\LICENSE
 VersionInfoDescription={#AppName} kurulumu
 VersionInfoProductName={#AppName}
 VersionInfoVersion={#AppVersion}

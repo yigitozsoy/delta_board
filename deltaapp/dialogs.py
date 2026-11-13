@@ -107,6 +107,63 @@ def _row(label, widget, sub=None):
     return w
 
 
+class KeyButton(QPushButton):
+    """Tahta kısayolu: tıkla, sonra bir tuşa bas. Esc vazgeçer, Backspace / Delete tuşu kaldırır."""
+    changed = pyqtSignal(str)
+
+    def __init__(self, value):
+        super().__init__()
+        self.value = value
+        self.waiting = False
+        self.setObjectName("Pill")
+        self.setMinimumWidth(110)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.clicked.connect(self._start)
+        self._show()
+
+    def _show(self):
+        self.setText(t("key_press") if self.waiting else (self.value or "—"))
+
+    def set_value(self, v):
+        self.value = v
+        self.waiting = False
+        self._show()
+
+    def _start(self):
+        self.waiting = True
+        self._show()
+        self.setFocus()
+
+    def focusOutEvent(self, e):
+        if self.waiting:
+            self.waiting = False
+            self._show()
+        super().focusOutEvent(e)
+
+    def keyPressEvent(self, e):
+        if not self.waiting:
+            return super().keyPressEvent(e)
+        from .tools import key_name
+        k = e.key()
+        if k == Qt.Key.Key_Escape:
+            self.waiting = False
+            self._show()
+            return
+        if k in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
+            self.set_value("")
+            self.changed.emit("")
+            return
+        if e.modifiers() & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier |
+                            Qt.KeyboardModifier.ShiftModifier):
+            return      # tek tuş: Ctrl / Alt / Shift'li tuşlar başka işlere ayrılmış
+        name = key_name(e)
+        if not name or k in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space, Qt.Key.Key_Tab,
+                             Qt.Key.Key_Home):
+            return
+        self.set_value(name)
+        self.changed.emit(name)
+
+
 def _combo(items, current):
     c = QComboBox()
     c.setMinimumWidth(170)
@@ -145,9 +202,10 @@ def set_autostart(on):
 
 
 class PrefsDialog(ThemedDialog):
-    def __init__(self, parent, hotkeys, on_hotkeys_changed=None):
+    def __init__(self, parent, hotkeys, on_hotkeys_changed=None, updater=None):
         super().__init__(parent, t("preferences"))
         self.hotkeys = hotkeys
+        self.updater = updater
         self.on_hotkeys_changed = on_hotkeys_changed
         self.resize(620, 680)
         outer = QVBoxLayout(self)
@@ -182,6 +240,10 @@ class PrefsDialog(ThemedDialog):
         self.c_lang = _combo([("tr", "Türkçe"), ("en", "English")], prefs.get("language", "tr"))
         self.c_lang.currentIndexChanged.connect(lambda: prefs.set("language", self.c_lang.currentData()))
         lay.addWidget(_row(t("language"), self.c_lang, t("language_sub")))
+        from .toolbar import POSITIONS, set_position
+        self.c_tb = _combo([(pos, t("tb_" + pos)) for pos in POSITIONS], prefs.get("toolbar_pos", "bottom"))
+        self.c_tb.currentIndexChanged.connect(lambda: set_position(self.c_tb.currentData()))
+        lay.addWidget(_row(t("toolbar_pos"), self.c_tb, t("tb_drag_hint")))
 
         # --- Kısayollar
         section(t("global_hotkeys"))
@@ -205,6 +267,43 @@ class PrefsDialog(ThemedDialog):
             lay.addWidget(_row(label, box))
             self._show_status(name)
 
+        # --- Tahta kısayolları (araç tuşları)
+        section(t("board_keys"))
+        sub = QLabel(t("board_keys_sub"))
+        sub.setObjectName("Secondary")
+        sub.setWordWrap(True)
+        lay.addWidget(sub)
+        from .tools import TOOL_ORDER, tool_keys, set_tool_key, reset_tool_keys, state as tstate
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(4)
+        self.key_btns = {}
+        keys = tool_keys()
+        for i, tool in enumerate(TOOL_ORDER):
+            lbl = QLabel(t("tool_" + tool))
+            kb = KeyButton(keys.get(tool, ""))
+            kb.changed.connect(lambda v, x=tool: set_tool_key(x, v))
+            self.key_btns[tool] = kb
+            grid.addWidget(lbl, i // 2, (i % 2) * 2)
+            grid.addWidget(kb, i // 2, (i % 2) * 2 + 1)
+        gw = QWidget()
+        gw.setLayout(grid)
+        lay.addWidget(gw)
+        rb = QPushButton(t("keys_reset"))
+        rb.setObjectName("Flat")
+        rb.clicked.connect(reset_tool_keys)
+        rr = QHBoxLayout()
+        rr.addStretch(1)
+        rr.addWidget(rb)
+        lay.addLayout(rr)
+
+        def _sync_keys():
+            ks = tool_keys()
+            for tool, b in self.key_btns.items():
+                b.set_value(ks.get(tool, ""))
+        tstate.keys_changed.connect(_sync_keys)
+        self.finished.connect(lambda _r: tstate.keys_changed.disconnect(_sync_keys))
+
         # --- Davranış
         section(t("behavior"))
         sw = ToggleSwitch(prefs.get("close_to_tray", True))
@@ -222,6 +321,9 @@ class PrefsDialog(ThemedDialog):
         c2 = _combo([("zoom", t("wheel_zoom")), ("scroll", t("wheel_scroll"))], prefs.get("wheel", "zoom"))
         c2.currentIndexChanged.connect(lambda: prefs.set("wheel", c2.currentData()))
         lay.addWidget(_row(t("wheel"), c2, t("wheel_sub")))
+        c4 = _combo([("png", "PNG"), ("jpg", "JPEG"), ("pdf", "PDF")], prefs.get("save_format", "png"))
+        c4.currentIndexChanged.connect(lambda: prefs.set("save_format", c4.currentData()))
+        lay.addWidget(_row(t("save_format"), c4, t("save_format_sub")))
 
         # --- Ekran videosu
         section(t("recording"))
@@ -266,6 +368,26 @@ class PrefsDialog(ThemedDialog):
         bx.addWidget(b2)
         lay.addWidget(_row(t("save_folder_sub"), bx))
         lay.addWidget(self.dir_lbl)
+
+        # --- Güncellemeler
+        section(t("updates"))
+        sw = ToggleSwitch(prefs.get("check_updates", True))
+        sw.toggled.connect(lambda v: prefs.set("check_updates", v))
+        lay.addWidget(_row(t("check_updates"), sw, t("check_updates_sub")))
+        ux = QHBoxLayout()
+        self.upd_lbl = QLabel("")
+        self.upd_lbl.setObjectName("Secondary")
+        self.upd_lbl.setOpenExternalLinks(True)
+        ub = QPushButton(t("check_now"))
+        ub.setObjectName("Pill")
+        ub.clicked.connect(self._check_now)
+        ux.addWidget(self.upd_lbl, 1)
+        ux.addWidget(ub)
+        lay.addLayout(ux)
+
+        # --- Künye
+        section(t("about"))
+        lay.addWidget(self._about_box())
         lay.addStretch(1)
 
         foot = QHBoxLayout()
@@ -280,6 +402,85 @@ class PrefsDialog(ThemedDialog):
         ok.clicked.connect(self.accept)
         foot.addWidget(ok)
         outer.addLayout(foot)
+
+    def _check_now(self):
+        if self.updater is None:
+            return
+        from .updater import RELEASES
+        self.upd_lbl.setText(t("checking"))
+
+        def res(status, ver):
+            try:
+                self.updater.result.disconnect(res)
+            except TypeError:
+                pass
+            if status == "new":
+                self.upd_lbl.setText(f'{t("update_available", v=ver)} · <a href="{RELEASES}">{t("download")}</a>')
+            elif status == "latest":
+                self.upd_lbl.setText(t("up_to_date"))
+            else:
+                self.upd_lbl.setText(t("update_error"))
+        self.updater.result.connect(res)
+        self.updater.check(manual=True)
+
+    def _about_box(self):
+        import platform
+        from PyQt6.QtCore import QT_VERSION_STR, PYQT_VERSION_STR
+        from . import __version__, __author__, REPO
+        url = f"https://github.com/{REPO}"
+        rows = [(t("about_app"), f"delta {__version__}"),
+                (t("about_author"), __author__),
+                (t("about_license"), "GNU GPL v3.0"),
+                (t("about_desc_k"), t("about_line")),
+                ("GitHub", f'<a href="{url}">{url.replace("https://", "")}</a>')]
+        engines = []
+        try:
+            import imageio_ffmpeg
+            engines.append(("FFmpeg", imageio_ffmpeg.get_ffmpeg_version()))
+        except Exception:
+            pass
+        engines.append(("Qt / PyQt6", f"{QT_VERSION_STR} / {PYQT_VERSION_STR}"))
+        engines.append(("Python", platform.python_version()))
+        try:
+            import PIL
+            engines.append(("Pillow", PIL.__version__))
+        except Exception:
+            pass
+        engines.append((t("about_ocr"), "Windows.Media.Ocr"))
+        box = QWidget()
+        g = QGridLayout(box)
+        g.setContentsMargins(0, 6, 0, 0)
+        g.setHorizontalSpacing(18)
+        g.setVerticalSpacing(5)
+        r = 0
+        for k, v in rows:
+            a = QLabel(k)
+            a.setObjectName("Secondary")
+            b = QLabel(v)
+            b.setWordWrap(True)
+            b.setOpenExternalLinks(True)
+            b.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+            g.addWidget(a, r, 0, Qt.AlignmentFlag.AlignTop)
+            g.addWidget(b, r, 1)
+            r += 1
+        head = QLabel(t("about_engines"))
+        head.setStyleSheet("font-weight: 700; margin-top: 8px;")
+        g.addWidget(head, r, 0, 1, 2)
+        r += 1
+        for k, v in engines:
+            a = QLabel(k)
+            a.setObjectName("Secondary")
+            b = QLabel(v)
+            b.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            g.addWidget(a, r, 0)
+            g.addWidget(b, r, 1)
+            r += 1
+        note = QLabel(t("about_licenses_note"))
+        note.setObjectName("Secondary")
+        note.setWordWrap(True)
+        g.addWidget(note, r, 0, 1, 2)
+        g.setColumnStretch(1, 1)
+        return box
 
     def _grid(self):
         prefs.set("grid", self.c_grid.currentData())
@@ -378,10 +579,11 @@ MOUSE = [
     ("m_drop", "h_drop"),
 ]
 KEYS = [
-    ("P / B", "h_k_pen"), ("H", "h_k_hl"), ("K", "h_k_laser"), ("E", "h_k_eraser"), ("V", "h_k_select"),
-    ("L · A · R · O", "h_k_shapes"), ("T", "h_k_text"), ("Enter", "h_k_enter"), ("I", "h_k_image"),
-    ("1 – 7", "h_k_colors"), ("[  ]   ,  .", "h_k_size"), ("Ctrl+Z / Ctrl+Y", "h_k_undo"),
-    ("Ctrl+C / X / V / D", "h_k_clip"), ("Ctrl+A · Delete", "h_k_sel"), ("F · Ctrl+0", "h_k_fit"),
-    ("G", "h_k_grid"), ("Ctrl+N · Ctrl+Tab", "h_k_notes"), ("Ctrl+S · Ctrl+Shift+S", "h_k_save"),
-    ("Ctrl+Shift+C", "h_k_copyall"), ("F11 · Ctrl+B", "h_k_view"), ("F1", "h_k_help"),
+    ("1 · 2", "h_k_pen"), ("3 · 4 · 5 · 6", "h_k_shapes"), ("7", "h_k_text"), ("8", "h_k_laser"),
+    ("9", "h_k_eraser"), ("0", "h_k_select"), ("A … Z", "h_k_type"), ("Enter", "h_k_enter"),
+    ("Shift+1 – 7", "h_k_colors"), ("Ctrl+↑ / Ctrl+↓", "h_k_size"), ("Ctrl+I", "h_k_image"),
+    ("Ctrl+Z / Ctrl+Y", "h_k_undo"), ("Ctrl+C / X / V / D", "h_k_clip"), ("Ctrl+A · Delete", "h_k_sel"),
+    ("Home · Ctrl+0", "h_k_fit"), ("Ctrl+G", "h_k_grid"), ("Ctrl+N · Ctrl+Tab", "h_k_notes"),
+    ("Ctrl+S · Ctrl+Shift+S", "h_k_save"), ("Ctrl+Shift+C", "h_k_copyall"), ("F11 · Ctrl+B", "h_k_view"),
+    ("F1", "h_k_help"),
 ]
