@@ -2,6 +2,7 @@
 
 python main.py           pencereyle açılır
 python main.py --tray    sessizce tepside başlar (Windows ile başlat bunu kullanır)
+python main.py --snip    ekran alıntısını başlatır (masaüstündeki "delta alıntı" simgesi; delta kapalıysa tepside açılır)
 python main.py --quit    çalışan delta'yı notları kaydedip kapatır (kurulum / kaldırma kullanır)
 """
 import ctypes
@@ -251,6 +252,10 @@ class DeltaApp(QObject):
     def handle_message(self, cmd):
         if cmd == "show":
             self.win.bring_front()
+        elif cmd == "snip":   # "delta alıntı" simgesi: tıklanan kısayolun izi ekrandan kalksın diye kısa bekle
+            if self.annotate.isVisible():
+                self.annotate.close_overlay()
+            self.capture.start(250)
         elif cmd == "quit":   # kurulum / kaldırma: notları kaydedip kapan
             self.win.quit_app()
 
@@ -296,7 +301,8 @@ def _selfcheck():
     from .recorder import find_ffmpeg
     from PyQt6.QtGui import QGuiApplication, QImage
     _ = QGuiApplication(sys.argv[:1])
-    ok = find_ffmpeg() is not None and not QImage(asset("logo.png")).isNull() and os.path.exists(asset("logo.ico"))
+    ok = find_ffmpeg() is not None and not QImage(asset("logo.png")).isNull() and os.path.exists(asset("logo.ico")) \
+        and os.path.exists(asset("snip.ico"))
     return 0 if ok else 3
 
 
@@ -329,8 +335,9 @@ def main():
     if "--quit" in sys.argv:   # çalışan delta'yı düzgünce kapat (kurulum betiği kullanır)
         _send_to_running("quit")
         return 0
-    hidden = "--tray" in sys.argv
-    if _send_to_running("tray" if hidden else "show"):
+    snip = "--snip" in sys.argv
+    hidden = "--tray" in sys.argv or snip
+    if _send_to_running("snip" if snip else "tray" if hidden else "show"):
         return 0
     QLocalServer.removeServer(SERVER_NAME)
     server = QLocalServer()
@@ -350,4 +357,6 @@ def main():
         s.disconnected.connect(s.deleteLater)
     server.newConnection.connect(on_conn)
     app._delta = d
+    if snip:
+        QTimer.singleShot(300, lambda: d.handle_message("snip"))
     return app.exec()

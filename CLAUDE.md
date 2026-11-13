@@ -10,14 +10,16 @@ kuralları burada da geçerli: Türkçe, sade varsayılanlar, gri vurgu, mor yok
 - Repo: https://github.com/yigitozsoy/delta_board (herkese açık; sürümler Releases'ta, kurulum + zip).
   Commit kimliği yerel: `Yiğit Özsoy <yigitozsoy@users.noreply.github.com>`. Push / etiket / release öncesi onay al
   (kullanıcı "commit et githuba koy, sorma" dediyse doğrudan yap).
-- Çalıştır: `python main.py` · tepside sessiz başlat: `python main.py --tray`
-- Test: `python tests/smoke_test.py` (70 adım, gerçek 2 sn'lik ffmpeg kaydı ve gerçek OCR dahil; gerçek arayüz; `--shots KLASÖR` ekran görüntüsü alır)
+- Çalıştır: `python main.py` · tepside sessiz başlat: `python main.py --tray` · alıntı başlat: `--snip`
+  (kurulum masaüstüne / Başlat'a "delta alıntı" kısayolu koyar, simgesi `assets/snip.ico`, `packaging/make_logo.py` üretir)
+- Test: `python tests/smoke_test.py` (71 adım, gerçek 2 sn'lik ffmpeg kaydı ve gerçek OCR dahil; gerçek arayüz; `--shots KLASÖR` ekran görüntüsü alır)
   PowerShell'de Türkçe çıktı için `$env:PYTHONIOENCODING="utf-8"`.
 - Lint: `python -m pyflakes deltaapp tests` temiz olmalı.
 - Derleme: `powershell -ExecutionPolicy Bypass -File packaging\build.ps1` → `build\dist\delta\delta.exe` (PyInstaller,
   ffmpeg dahil) + `build\installer\delta-setup-X.exe` (Inno Setup 6, yönetici izni istemez) + taşınabilir zip.
   Paket denetimi: `delta.exe --selfcheck` (0 = tamam). Kurulum çalışan delta'yı `delta.exe --quit` ile kapatır;
-  test kurulumunda `/NOQUIT=1` ver. Notlar (%LOCALAPPDATA%\delta) kaldırmada silinmez.
+  test kurulumunda `/NOQUIT=1` ver — ama delta o klasörden çalışıyorsa VERME: [InstallDelete] `_internal`'ı siler,
+  kullanımdaki dosyalar yazılamaz, kurulu kopya "Failed to import encodings" hatasıyla açılmaz hale gelir. Notlar (%LOCALAPPDATA%\delta) kaldırmada silinmez.
 
 ## Klasör yapısı
 ```

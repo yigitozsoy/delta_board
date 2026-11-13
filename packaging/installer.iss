@@ -49,6 +49,10 @@ turkish.TaskAutostart=Windows ile başlat (tepside sessizce bekler, kısayollar 
 english.TaskAutostart=Start with Windows (waits quietly in the tray, shortcuts always ready)
 turkish.Desc=Toplantıda anlatmak için çizim tahtası, ekran alıntısı ve ekran videosu
 english.Desc=Whiteboard, screen snip and screen recording for explaining things in meetings
+turkish.SnipName=delta alıntı
+english.SnipName=delta snip
+turkish.SnipDesc=Ekran alıntısı al (delta kapalıysa tepside açılır)
+english.SnipDesc=Take a screen snip (starts delta in the tray if it is not running)
 turkish.LaunchApp=delta'yı aç
 english.LaunchApp=Open delta
 
@@ -66,6 +70,8 @@ Type: filesandordirs; Name: "{app}\_internal"
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"; Comment: "{cm:Desc}"; AppUserModelID: "{#AppUserModelID}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Comment: "{cm:Desc}"; AppUserModelID: "{#AppUserModelID}"; Tasks: desktopicon
+Name: "{group}\{cm:SnipName}"; Filename: "{app}\{#AppExe}"; Parameters: "--snip"; IconFilename: "{app}\_internal\deltaapp\assets\snip.ico"; Comment: "{cm:SnipDesc}"; AppUserModelID: "{#AppUserModelID}"
+Name: "{autodesktop}\{cm:SnipName}"; Filename: "{app}\{#AppExe}"; Parameters: "--snip"; IconFilename: "{app}\_internal\deltaapp\assets\snip.ico"; Comment: "{cm:SnipDesc}"; AppUserModelID: "{#AppUserModelID}"; Tasks: desktopicon
 
 [Registry]
 ; "Windows ile başlat" — uygulamanın Seçenekler'deki anahtarıyla aynı kayıt (HKCU Run → delta)
@@ -83,7 +89,9 @@ begin
   Result := ExpandConstant('{param:NOQUIT|0}') = '0';
 end;
 
-// Çalışan delta'yı notlarını kaydettirerek kapat ("delta.exe --quit"); 1,5 sn'de kapanmazsa zorla
+// Çalışan delta'yı notlarını kaydettirerek kapat ("delta.exe --quit"); 2,5 sn'de kapanmazsa zorla.
+// --quit beklenmez: kurulu kopya bozuksa (yarım kalmış kurulum) exe hata kutusunda takılır, kurulum da kilitlenirdi;
+// taskkill onu da kapatır.
 procedure QuitRunningDelta(Exe: String);
 var
   Code: Integer;
@@ -91,8 +99,8 @@ begin
   if not ShouldQuitRunning() then Exit;
   if FileExists(Exe) then
   begin
-    Exec(Exe, '--quit', '', SW_HIDE, ewWaitUntilTerminated, Code);
-    Sleep(1500);
+    Exec(Exe, '--quit', '', SW_HIDE, ewNoWait, Code);
+    Sleep(2500);
   end;
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM {#AppExe} /F', '', SW_HIDE, ewWaitUntilTerminated, Code);
 end;

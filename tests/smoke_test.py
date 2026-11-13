@@ -552,6 +552,13 @@ def main():
          q_ok and swap_ok and steal_ok and tool_key("pen") == "1" and tool_key("laser") == "8")
     state.set_tool("pen")
 
+    calls = []
+    real_start = d.capture.start
+    d.capture.start = lambda delay=0, mode="snip": calls.append((delay, mode))
+    d.handle_message("snip")
+    d.capture.start = real_start
+    step("--snip / \"delta alıntı\" simgesi alıntıyı başlatır", calls == [(250, "snip")])
+
     from deltaapp.updater import is_newer, parse_version
     step("güncelleme: sürüm karşılaştırma", is_newer("v1.2.0", "1.1.0") and not is_newer("1.1.0", "1.1.0")
          and not is_newer("1.0.9", "1.1.0") and parse_version("v2") == (2, 0, 0))

@@ -1,6 +1,7 @@
 """delta logosunu gamma ile aynı tarzda üretir (Pillow gerekir):
   deltaapp/assets/logo.ico — açık gri degrade yuvarlak kare, ince gri çerçeve, koyu Georgia Δ (gamma'nın Γ'sı ile
                              aynı yazı tipi, renk ve boyut; ölçüler gamma'nın 256 px simgesinden alındı)
+  deltaapp/assets/snip.ico — aynı zemin, köşe işaretli seçim çerçevesi içinde küçük Δ ("delta alıntı" kısayolu)
   deltaapp/assets/logo.png — beyaz Δ (arayüzde renklendirilir), gamma'nın logo.png'si ile aynı tuval ve yükseklik
 Çalıştır: python packaging/make_logo.py"""
 import os
@@ -32,7 +33,13 @@ def glyph_mask(height_px, ss):
     return m.resize((max(1, round(m.width * k)), round(height_px)), Image.LANCZOS)
 
 
-def icon(n):
+SNIP_BOX = (40 / 256, 216 / 256)   # seçim çerçevesi (köşe işaretleri)
+SNIP_ARM = 50 / 256
+SNIP_W = 16 / 256
+SNIP_GLYPH_H = 96 / 256
+
+
+def icon(n, snip=False):
     ss = 8                       # süper örnekleme
     s = n * ss
     img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
@@ -50,8 +57,18 @@ def icon(n):
     inset = max(0.5, n / 256) * ss
     ImageDraw.Draw(img).rounded_rectangle([inset, inset, s - 1 - inset, s - 1 - inset], radius=r - inset,
                                          outline=(BORDER, BORDER, BORDER, 255), width=round(bw))
+    if snip:   # ekran alıntısı: dört köşede L işaretleri
+        a, b = SNIP_BOX[0] * s, SNIP_BOX[1] * s
+        arm, w = SNIP_ARM * s, max(1.2 * ss, SNIP_W * s)
+        d = ImageDraw.Draw(img)
+        for x, sx in ((a, 1), (b, -1)):
+            for y, sy in ((a, 1), (b, -1)):
+                d.rectangle([min(x, x + sx * arm), min(y, y + sy * w), max(x, x + sx * arm), max(y, y + sy * w)],
+                            fill=INK)
+                d.rectangle([min(x, x + sx * w), min(y, y + sy * arm), max(x, x + sx * w), max(y, y + sy * arm)],
+                            fill=INK)
     # harf
-    m = glyph_mask(GLYPH_H * s, ss)
+    m = glyph_mask((SNIP_GLYPH_H if snip else GLYPH_H) * s, ss)
     cx, cy = CENTER[0] * s, CENTER[1] * s
     ink = Image.new("RGBA", m.size, INK)
     img.paste(ink, (round(cx - m.width / 2), round(cy - m.height / 2)), m)
@@ -71,8 +88,10 @@ def white_png():
 def main():
     imgs = [icon(n) for n in SIZES]
     imgs[-1].save(os.path.join(ASSETS, "logo.ico"), sizes=[(n, n) for n in SIZES], append_images=imgs[:-1])
+    simgs = [icon(n, snip=True) for n in SIZES]
+    simgs[-1].save(os.path.join(ASSETS, "snip.ico"), sizes=[(n, n) for n in SIZES], append_images=simgs[:-1])
     white_png().save(os.path.join(ASSETS, "logo.png"))
-    print("logo.ico + logo.png üretildi")
+    print("logo.ico + snip.ico + logo.png üretildi")
 
 
 if __name__ == "__main__":
