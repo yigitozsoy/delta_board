@@ -36,6 +36,7 @@ DEFAULTS = {
     "last_update_check": 0,
     "wheel": "zoom",                # zoom | scroll  (fare tekerleği)
     "sidebar_visible": True,
+    "notes_dir": "",                # boş = Resimler\delta
     "pinned": False,
     "close_to_tray": True,
     "autostart": False,
@@ -55,7 +56,7 @@ DEFAULTS = {
     # araç durumu
     "tool": "pen",
     "color": "auto",
-    "width": 4.0,
+    "width": 2.5,
     "last_shape": "arrow",
     "custom_color": "#b0b0b0",
 }
@@ -106,6 +107,21 @@ def video_dir() -> str:
         except Exception:
             vids = ""
         d = os.path.join(vids or os.path.expanduser("~"), "delta")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def notes_root() -> str:
+    """Notların (.delta dosyaları) klasörü: varsayılan Resimler\\delta (alıntılarla aynı yer).
+    Alt klasörler not klasörleridir."""
+    d = prefs.get("notes_dir") or ""
+    if not d:
+        try:
+            from PyQt6.QtCore import QStandardPaths
+            pics = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.PicturesLocation)
+        except Exception:
+            pics = ""
+        d = os.path.join(pics or os.path.expanduser("~"), "delta")
     os.makedirs(d, exist_ok=True)
     return d
 

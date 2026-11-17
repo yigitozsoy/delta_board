@@ -170,8 +170,7 @@ class DeltaApp(QObject):
                 self.capture.start(0, mode="record")
             return
         if name == "capture":
-            if self.annotate.isVisible():
-                self.annotate.close_overlay()
+            self._close_annotate_for_capture()
             self.capture.start()
         elif name == "annotate":
             if not self.capture.active():
@@ -196,6 +195,16 @@ class DeltaApp(QObject):
             QTimer.singleShot(180, self.annotate.open)   # küçülme bitsin, katman altta delta'yı göstermesin
         else:
             self.annotate.open()
+
+    def _close_annotate_for_capture(self):
+        """Ekrana çiz açıkken alıntı: çizim kapanır ama indirilmiş delta hemen geri gelmez (yoksa alıntıya girerdi);
+        geri gelme işi alıntı bitene devredilir."""
+        if not self.annotate.isVisible():
+            return
+        restore = self._restore_after_annotate
+        self._restore_after_annotate = False
+        self.annotate.close_overlay()
+        self._restore_after_capture = self._restore_after_capture or restore
 
     def _annotate_done(self):
         if self._restore_after_annotate and self.win.isMinimized():
@@ -245,7 +254,7 @@ class DeltaApp(QObject):
             self._last_video = None
 
     def _capture_done(self):
-        if self._restore_after_capture and not self.win.isVisible():
+        if self._restore_after_capture and (not self.win.isVisible() or self.win.isMinimized()):
             self.win.bring_front()
         self._restore_after_capture = False
 
@@ -272,11 +281,12 @@ class DeltaApp(QObject):
         if cmd == "show":
             self.win.bring_front()
         elif cmd == "snip":   # "delta alıntı" simgesi: tıklanan kısayolun izi ekrandan kalksın diye kısa bekle
-            if self.annotate.isVisible():
-                self.annotate.close_overlay()
+            self._close_annotate_for_capture()
             self.capture.start(250)
         elif cmd == "quit":   # kurulum / kaldırma: notları kaydedip kapan
             self.win.quit_app()
+        elif cmd.startswith("open:"):   # .delta dosyasına çift tık
+            self.win.open_file(cmd[5:])
 
     def quit(self):
         if self.recorder.active():
@@ -284,6 +294,9 @@ class DeltaApp(QObject):
             if self.recorder.proc is not None:
                 self.recorder.proc.waitForFinished(8000)
         self.win.save_state()
+        for bd in (self.win.board, getattr(self.annotate, "board", None)):
+            if bd is not None:
+                bd.detach()
         self.hotkeys.unregister_all()
         if self.tray is not None:
             self.tray.hide()
@@ -356,7 +369,11 @@ def main():
         return 0
     snip = "--snip" in sys.argv
     hidden = "--tray" in sys.argv or snip
-    if _send_to_running("snip" if snip else "tray" if hidden else "show"):
+    note_file = next((a for a in sys.argv[1:] if a.lower().endswith(".delta") and os.path.isfile(a)), None)
+    if note_file:
+        note_file = os.path.abspath(note_file)
+        hidden = False
+    if _send_to_running("open:" + note_file if note_file else "snip" if snip else "tray" if hidden else "show"):
         return 0
     QLocalServer.removeServer(SERVER_NAME)
     server = QLocalServer()
@@ -378,4 +395,6 @@ def main():
     app._delta = d
     if snip:
         QTimer.singleShot(300, lambda: d.handle_message("snip"))
+    if note_file:
+        QTimer.singleShot(0, lambda: d.handle_message("open:" + note_file))
     return app.exec()

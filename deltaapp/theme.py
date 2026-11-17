@@ -249,6 +249,19 @@ QPushButton#Flat:hover {{ background: {c['hover']}; }}
 }}
 
 #NotesPanel {{ background: {c['bg']}; }}
+QPushButton#PanelTab {{
+    background: transparent; border: none; border-radius: 14px; padding: 4px 10px;
+    font-size: 15px; font-weight: 700; color: {c['text3']};
+}}
+QPushButton#PanelTab:hover {{ color: {c['text2']}; }}
+QPushButton#PanelTab:checked {{ color: {c['text']}; background: {c['hover']}; }}
+QListView#LayersList {{ background: transparent; border: none; outline: none; }}
+QListView#LayersList::item {{ border: none; border-radius: 8px; margin: 1px 0px; background: transparent; }}
+QListView#LayersList::item:hover {{ background: {c['hover']}; }}
+QListView#LayersList::item:selected {{ background: {c['surface_hover']}; }}
+#LayerName {{ color: {c['text']}; font-size: 13px; }}
+#Muted {{ color: {c['text3']}; font-size: 12px; }}
+#LayerNameDim {{ color: {c['text3']}; font-size: 13px; font-style: italic; }}
 QListView#NotesList {{ background: transparent; border: none; }}
 
 QLineEdit, QSpinBox, QComboBox {{

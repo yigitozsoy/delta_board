@@ -46,6 +46,7 @@ class AnnotateOverlay(QWidget):
             ("clear", "delete", t("clear_all"), self.board.clear_all, False),
             ("close", "close", t("close") + " (Esc)", self.close_overlay, False),
         ])
+        self.board.avoid = [self.toolbar]
         self.hint = Toast(self)
 
     def resizeEvent(self, e):

@@ -82,13 +82,17 @@ def main():
     prefs.set("video_dir", os.path.join(TMP, "videos"))
     prefs.set("record_mic", "")
     prefs.set("check_updates", False)   # testte ağa çıkma
+    prefs.set("notes_dir", os.path.join(TMP, "notes"))       # gerçek Resimler\delta'ya dokunma
+    prefs.set("snapshot_dir", os.path.join(TMP, "pictures"))
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     from deltaapp.app import DeltaApp
     from deltaapp import items as I
     from deltaapp.tools import state
+    prefs.set("sidebar_visible", False)     # kapatılıp çıkılmış gibi: yine açık gelmeli
     d = DeltaApp(app)
     win = d.win
+    panel_at_start = not win.panel.isHidden()
     win.resize(1280, 800)
     pump(20)
     b = win.board
@@ -170,8 +174,8 @@ def main():
         vkey(vp, k, vk, chr(vk))
         got_tools.append(state.tool)
     step("1-9/0 araç seçer (3 ok, 8 lazer, 0 seç, 1 kalem)", got_tools == ["arrow", "laser", "select", "pen"])
-    vkey(vp, Qt.Key.Key_Exclam, 0x32, "'", Qt.KeyboardModifier.ShiftModifier)   # Shift+2 (Türkçe klavyede ')
-    step("Shift+2 kırmızı renk", state.color == "#ff453a" and state.tool == "pen")
+    vkey(vp, Qt.Key.Key_Dollar, 0x34, "$", Qt.KeyboardModifier.ShiftModifier)   # Shift+4
+    step("Shift+4 kırmızı renk", state.color == "#ff453a" and state.tool == "pen")
     state.set_color("auto")
     # hızlı yazı: harfe basınca imlecin olduğu yerde yazı başlar
     n_txt = len([i for i in sc.content_items() if isinstance(i, I.TextItem)])
@@ -267,7 +271,7 @@ def main():
     QApplication.sendEvent(vp, QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Ampersand, Qt.KeyboardModifier.ShiftModifier,
                                          0, 0x36, 0, "&"))
     pump()
-    step("seçiliyken Shift+6 boyar, araç değişmez", tgt.color_name == "#3ea6ff" and state.tool == tool_before)
+    step("seçiliyken Shift+6 boyar, araç değişmez", tgt.color_name == "#ffd60a" and state.tool == tool_before)
     key(vp, Qt.Key.Key_Z, "", CTRL)
     step("boyama geri alınır", tgt.color_name == "auto")
     sc.clearSelection()
@@ -335,6 +339,30 @@ def main():
     im = [i for i in b.scene().content_items() if isinstance(i, I.ImageItem)]
     step("alıntı mantıksal boyutta (HiDPI)", im and im[0].pixmap().width() == 400 and
          abs(im[0].pixmap().width() * im[0].scale() - 200) < 2)
+    vis = b.mapToScene(b.viewport().rect()).boundingRect()
+    step("alıntı yapıştırılmış gelir: seçili değil, kalem hazır, görünüm alıntıya sığar",
+         im and not im[0].isSelected() and state.tool in ("pen", "hl", "line", "arrow", "rect", "ellipse")
+         and vis.contains(I.exact_rect(im[0])) and b.zoom() <= 1.0 + 1e-6)
+
+    # alıntının üstüne çiz + Ctrl+C: çizimli alıntı, alıntının kendi boyutunda kopyalanır (eski alıntı değil)
+    if im:
+        g = im[0]
+        was_sel = g.isSelected()
+        state.set_tool("pen")
+        old_color = state.color
+        state.set_color("#ff2020")
+        r = g.mapRectToScene(QRectF(g.pixmap().rect()))
+        p1 = b.mapFromScene(QPointF(r.left() + r.width() * 0.2, r.center().y()))
+        p2 = b.mapFromScene(QPointF(r.left() + r.width() * 0.8, r.center().y()))
+        drag(vp, [p1, (p1 + p2) / 2, p2])
+        state.set_color(old_color)
+        b.setFocus()
+        key(vp, Qt.Key.Key_C, "", CTRL)
+        cim = QApplication.clipboard().image()
+        mid = QColor(cim.pixel(cim.width() // 2, cim.height() // 2)) if not cim.isNull() else QColor()
+        print("   çizimli alıntı:", cim.width(), "x", cim.height(), "orta:", mid.name(), "seçiliydi:", was_sel)
+        step("alıntıya çizip Ctrl+C: çizimiyle, alıntı boyutunda kopyalanır",
+             cim.width() == 400 and cim.height() == 300 and mid.red() > 200 and mid.green() < 100)
 
     # alıntıyı ekrana iğnele
     ov = CaptureOverlay(d.capture, scr, fake)
@@ -399,6 +427,21 @@ def main():
     pump(10)
     step("pencereden ekrana çiz: delta iner, kapanınca geri gelir",
          went_down and opened and not win.isMinimized() and win.isVisible())
+
+    # ekrana çiz açıkken alıntı: delta alıntıya girmesin, alıntı bitince geri gelsin
+    win.request_annotate.emit()
+    pump(10)
+    QTest.qWait(300)
+    real_start = d.capture.start
+    d.capture.start = lambda delay=0, mode="snip": None
+    d.handle_message("snip")
+    pump(10)
+    still_down = win.isMinimized() and not ann.isVisible()
+    d.capture.start = real_start
+    d.capture.finished.emit()
+    pump(10)
+    step("ekrana çiz → alıntı: delta alıntı süresince aşağıda, sonra geri gelir",
+         still_down and not win.isMinimized() and win.isVisible())
 
     # ekran videosu: önce seçim ekranı (sahte görüntü) kayıt modunda
     from deltaapp.recorder import find_ffmpeg
@@ -572,6 +615,465 @@ def main():
     d.handle_message("snip")
     d.capture.start = real_start
     step("--snip / \"delta alıntı\" simgesi alıntıyı başlatır", calls == [(250, "snip")])
+
+    # ---- 1.3: hizala / diz / grupla / katman / kilit / gizle / kılavuz / ok tuşları / katmanlar paneli
+    import random
+    SHIFT = Qt.KeyboardModifier.ShiftModifier
+    win.new_note()
+    pump(5)
+    b = win.board
+    vp = b.viewport()
+    sc = b.scene()
+    b.set_zoom(1.0)
+    b.centerOn(QPointF(0, 0))
+    random.seed(7)
+    pics = []
+    for i in range(10):
+        im10 = QImage(random.randint(60, 120), random.randint(40, 90), QImage.Format.Format_RGB32)
+        im10.fill(QColor.fromHsv(i * 36, 160, 230))
+        pics.append(b.insert_image(im10, QPointF(random.uniform(-300, 300), random.uniform(-200, 200))))
+    pump()
+
+    def rects():
+        return [I.exact_rect(it) for it in pics]
+
+    def overlap_free(rs):
+        return not any(rs[i].intersects(rs[j]) for i in range(len(rs)) for j in range(i + 1, len(rs)))
+    b.select_all()
+    pump()
+    step("seçim çubuğu: seçince görünür", b.selbar.isVisible())
+    before = [it.pos() for it in pics]
+    b.arrange("grid")
+    rs = rects()
+    xs = {round(r.center().x(), 1) for r in rs}
+    ys = {round(r.center().y(), 1) for r in rs}
+    step("ızgaraya diz: 10 görsel 4 sütun × 3 satır, üst üste binmez", len(xs) == 4 and len(ys) == 3 and overlap_free(rs))
+    win.page.undo.undo()
+    step("dizmeyi geri al: yerler geri gelir", all(it.pos() == p0 for it, p0 in zip(pics, before)))
+    b.arrange("circle")
+    rs = rects()
+    c = QPointF(sum(r.center().x() for r in rs) / len(rs), sum(r.center().y() for r in rs) / len(rs))
+    ds = [math.hypot(r.center().x() - c.x(), r.center().y() - c.y()) for r in rs]
+    angs = sorted(math.atan2(r.center().y() - c.y(), r.center().x() - c.x()) for r in rs)
+    steps_ = [angs[i + 1] - angs[i] for i in range(len(angs) - 1)]
+    step("çembere diz: merkeze eşit uzaklık, eşit açı, çakışma yok",
+         max(ds) - min(ds) < 1.0 and max(steps_) - min(steps_) < 0.01 and overlap_free(rs))
+    b.arrange("row")
+    rs = sorted(rects(), key=lambda r: r.left())
+    gaps = [rs[i + 1].left() - rs[i].right() for i in range(len(rs) - 1)]
+    step("yan yana diz: aynı hizada, eşit boşluk",
+         max(gaps) - min(gaps) < 0.01 and len({round(r.center().y(), 1) for r in rs}) == 1)
+    for it in pics:
+        it.setPos(it.pos() + QPointF(random.uniform(-40, 40), random.uniform(-60, 60)))
+    b.align("top")
+    tops = {round(r.top(), 2) for r in rects()}
+    b.distribute("h")
+    rs = sorted(rects(), key=lambda r: r.left())
+    gaps = [rs[i + 1].left() - rs[i].right() for i in range(len(rs) - 1)]
+    step("üste hizala + yatayda eşit dağıt", len(tops) == 1 and max(gaps) - min(gaps) < 0.01)
+    b.arrange("grid")
+
+    # grup: biri seçilince hepsi; tek parça taşınır; çöz
+    sc.clearSelection()
+    pics[0].setSelected(True)
+    pics[1].setSelected(True)
+    vp.setFocus()
+    key(vp, Qt.Key.Key_G, "", CTRL)
+    gid = I.group_of(pics[0])
+    sc.clearSelection()
+    pics[1].setSelected(True)
+    pump()
+    g_sel = pics[0].isSelected() and pics[1].isSelected() and not pics[2].isSelected()
+    step("Ctrl+G grupla: biri seçilince grubun tamamı seçilir", bool(gid) and I.group_of(pics[1]) == gid and g_sel)
+    d0 = pics[0].pos()
+    key(vp, Qt.Key.Key_Right, "")
+    key(vp, Qt.Key.Key_Right, "", SHIFT)
+    moved_ok = abs(pics[0].pos().x() - d0.x() - 11) < 1e-6 and pics[0].pos().y() == d0.y()
+    win.page.undo.undo()
+    step("ok tuşu kaydırır (Shift ×10), art arda kaydırmalar tek geri al", moved_ok and pics[0].pos() == d0)
+    key(vp, Qt.Key.Key_G, "", CTRL | SHIFT)
+    step("Ctrl+Shift+G grubu çözer", I.group_of(pics[0]) is None and I.group_of(pics[1]) is None)
+
+    # katman sırası
+    sc.clearSelection()
+    a_, b_ = pics[2], pics[3]
+    b_.setPos(a_.pos() + QPointF(20, 20))   # üst üste binsinler
+    low, high = sorted((a_, b_), key=lambda i: i.zValue())
+    low.setSelected(True)
+    key(vp, Qt.Key.Key_PageUp, "", CTRL)
+    fwd = low.zValue() > high.zValue()
+    key(vp, Qt.Key.Key_PageDown, "", CTRL)
+    bwd = low.zValue() < high.zValue()
+    key(vp, Qt.Key.Key_PageUp, "", CTRL | SHIFT)
+    front = low.zValue() == max(it.zValue() for it in sc.content_items())
+    key(vp, Qt.Key.Key_PageDown, "", CTRL | SHIFT)
+    back = low.zValue() == min(it.zValue() for it in sc.content_items())
+    state.set_tool("pen")
+    drag(vp, [b.mapFromScene(QPointF(-500, -400)), b.mapFromScene(QPointF(-450, -380))])
+    pen_top = max(sc.content_items(), key=lambda i: i.zValue())
+    step("katman: öne / geri / en öne / en arkaya; sonra çizilen yine en üstte",
+         fwd and bwd and front and back and isinstance(pen_top, I.StrokeItem))
+
+    # kilit + gizle + kayıt
+    sc.clearSelection()
+    pics[4].setSelected(True)
+    key(vp, Qt.Key.Key_L, "", CTRL)
+    pics[4].setSelected(True)
+    locked_ok = I.is_locked(pics[4]) and not pics[4].isSelected()
+    stroke = pen_top
+    stroke.setSelected(False)
+    b.set_locked([stroke], True)
+    state.set_tool("eraser")
+    spt = b.mapFromScene(stroke.sceneBoundingRect().center())
+    drag(vp, [spt, spt + QPoint(3, 1)])
+    survived = stroke.scene() is sc
+    b.set_locked([stroke], False)
+    b.set_hidden([pics[5]], True)
+    dd = I.to_dict(pics[4])
+    dd2 = I.to_dict(pics[5])
+    back4, back5 = I.from_dict(dd), I.from_dict(dd2)
+    rimg_all = render_scene(sc)
+    step("kilit: seçilmez, silgi dokunmaz; gizli resme girmez; kayıtta korunur",
+         locked_ok and survived and not pics[5].isVisible() and I.is_locked(back4) and not back5.isVisible()
+         and rimg_all is not None)
+    b.set_hidden([pics[5]], False)
+    b.set_locked([pics[4]], False)
+    state.set_tool("select")
+
+    # akıllı kılavuz: sürüklerken üst kenara yapışır
+    sc.clearSelection()
+    ta, tb_ = pics[6], pics[7]
+    ta.setPos(QPointF(2000, 2000))      # diğerlerinden uzakta: başka kenara yapışmasın
+    tb_.setPos(QPointF(2250, 2210))
+    b.centerOn(QPointF(2150, 2100))
+    pump()
+    want = I.exact_rect(ta).top()
+    rb = I.exact_rect(tb_)
+    start = b.mapFromScene(rb.center())
+    dy = (want - rb.top()) + 4      # hedefe 4 birim kala bırak: yapışmalı
+    end = b.mapFromScene(rb.center() + QPointF(-30, dy))
+    mouse(vp, PRESS, start, L, L)
+    mouse(vp, MOVE, start + QPoint(5, 5), NB, L)
+    mouse(vp, MOVE, end, NB, L)
+    guides = bool(b._guides)
+    mouse(vp, REL, end, L, NB)
+    pump()
+    step("akıllı kılavuz: sürüklerken üst kenara yapışır, kılavuz çizgisi çıkar",
+         guides and abs(I.exact_rect(tb_).top() - want) < 0.01 and not b._guides)
+
+    # katmanlar paneli
+    win.set_panel(True)
+    win.panel.set_tab(1)
+    pump(10)
+    lp = win.layers
+    lp.refresh()
+    rows_ok = lp.list.count() == len(sc.content_items())
+    sc.clearSelection()
+    lp.list.item(0).setSelected(True)
+    pump()
+    top_item = max(sc.content_items(), key=lambda i: i.zValue())
+    sel_sync = top_item.isSelected()
+    order = b.layer_order()
+    b.set_layer_order(list(reversed(order)))
+    rev_ok = b.layer_order() == list(reversed(order))
+    win.page.undo.undo()
+    step("katmanlar paneli: satırlar, seçim eşlemesi, sıralama (+geri al)",
+         rows_ok and sel_sync and rev_ok and b.layer_order() == order)
+    shot(win, "13_katmanlar")
+    sc.clearSelection()
+    pump()
+    step("seçim çubuğu: seçim kalkınca gizlenir", not b.selbar.isVisible())
+    g0 = prefs.get("grid", "dots")
+    key(vp, Qt.Key.Key_R, "", CTRL)
+    step("Ctrl+R ızgarayı değiştirir", prefs.get("grid", "dots") != g0)
+    key(vp, Qt.Key.Key_R, "", CTRL)
+    key(vp, Qt.Key.Key_R, "", CTRL)
+    win.panel.set_tab(0)
+
+    # ---- paket 3: döndür / çevir / kırp / saydamlık / dolgu / yazı biçimi
+    # yazı / hücre düzenleme sahnenin etkin olmasını ister: pencere arka planda kalmışsa etkinleştir
+    win.activateWindow()
+    win.raise_()
+    try:
+        QApplication.setActiveWindow(win)
+    except Exception:
+        pass
+    pump(10)
+    win.set_panel(False)
+    for it in list(sc.content_items()):
+        sc.removeItem(it)
+    img = QImage(200, 100, QImage.Format.Format_RGB32)
+    img.fill(QColor("#4caf50"))
+    for x in range(100):
+        for y in range(100):
+            img.setPixelColor(x, y, QColor("#e53935"))      # sol yarı kırmızı
+    ri = b.insert_image(img, QPointF(0, 0))
+    pump()
+    c0 = I.exact_rect(ri).center()
+    sc.clearSelection()
+    ri.setSelected(True)
+    b.rotate_selection(90)
+    r90 = I.exact_rect(ri)
+    rot_ok = (abs(r90.width() - 100 * ri.scale()) < 0.6 and abs(r90.height() - 200 * ri.scale()) < 0.6
+              and abs(r90.center().x() - c0.x()) < 0.6 and abs(r90.center().y() - c0.y()) < 0.6)
+    win.page.undo.undo()
+    step("90° döndür: en/boy yer değiştirir, merkez sabit (+geri al)",
+         rot_ok and I.geom(ri) == (0.0, False, False) and abs(I.exact_rect(ri).width() - 200 * ri.scale()) < 0.6)
+    b.flip_selection("h")
+    pm = render_scene(sc, rect=I.exact_rect(ri))
+    left = pm.pixelColor(5, pm.height() // 2) if pm is not None else QColor()
+    step("yatay çevir: sol yarı yeşil olur", I.geom(ri)[1] and left.green() > 120 and left.red() < 120)
+    win.page.undo.undo()
+    # tutamaçtan sürükleyerek döndür
+    b.centerOn(c0)
+    pump()
+    rh = b._rot_handle()
+    hp = b.mapFromScene(rh[1])
+    cc = b.mapFromScene(rh[2])
+    tgt = QPoint(cc.x() + 200, cc.y())                     # merkezin sağı → 90°
+    mouse(vp, PRESS, hp, L, L)
+    mouse(vp, MOVE, hp + QPoint(3, 2), NB, L)
+    mouse(vp, MOVE, tgt + QPoint(0, 3), NB, L)             # 90°'ye yakın: dik açıya yapışmalı
+    mouse(vp, REL, tgt + QPoint(0, 3), L, NB)
+    pump()
+    step("döndürme tutamacı: sürükleyince döner, dik açıya yapışır, tek geri al",
+         rh is not None and abs(I.geom(ri)[0] - 90) < 0.01 and win.page.undo.undoText() == "rotate")
+    win.page.undo.undo()
+    # kırp: sağ yarıyı bırak
+    b.start_crop(ri)
+    crop_mode = b._crop is not None and not b.selbar.isVisible()
+    b._crop["rect"] = QRectF(100, 0, 100, 100)
+    key(vp, Qt.Key.Key_Return)
+    pump()
+    er = I.exact_rect(ri)
+    crop_ok = (ri.pixmap().width() == 100 and ri.pixmap().height() == 100
+               and abs(er.width() - 100 * ri.scale()) < 0.6)
+    # içerik yerinde kalmalı: kırpılan görselin sol kenarı eski görselin ortasında
+    full_left = c0.x() - 100 * ri.scale()
+    content_ok = abs(er.left() - (full_left + 100 * ri.scale())) < 0.6
+    step("kırp (çift tık / Enter): kalan parça yerinde durur, boyut doğru",
+         crop_mode and crop_ok and content_ok and ri.pixmap().toImage().pixelColor(5, 5).green() > 120)
+    d_ = I.to_dict(ri)
+    win.page.undo.undo()
+    step("kırpmayı geri al: görselin tamamı geri gelir", ri.pixmap().width() == 200)
+    # Esc vazgeçer
+    b.start_crop(ri)
+    b._crop["rect"] = QRectF(0, 0, 50, 50)
+    key(vp, Qt.Key.Key_Escape)
+    step("kırpmada Esc: değişiklik yok", b._crop is None and ri.pixmap().width() == 200)
+    # saydamlık + dolgu + yazı biçimi + kayıt
+    sc.clearSelection()
+    ri.setSelected(True)
+    b.rotate_selection(30)
+    b.set_opacity_items([ri], 0.5)
+    shp = I.StrokeItem("rect", "#e53935", 4, [QPointF(400, 0), QPointF(600, 120)])
+    sc.addItem(shp)
+    sc.clearSelection()
+    shp.setSelected(True)
+    b.fill_selection("#64b5f6")
+    inside_hit = shp.shape().contains(shp.mapFromScene(QPointF(500, 60)))
+    tx = b.new_text(QPointF(0, 300), "Merhaba")
+    b.finish_text()
+    texts = [it for it in sc.content_items() if isinstance(it, I.TextItem)]
+    tx = texts[0] if texts else None
+    sc.clearSelection()
+    if tx is not None:
+        tx.setSelected(True)
+    b.toggle_text("bold")
+    b.text_align("center")
+    s0 = I.text_style(tx)[0] if tx is not None else 0
+    b.text_size(1.2)
+    pump()
+    info = b.selection_info()
+    bar_ok = b.selbar.b_bold.isVisible() and b.selbar.b_bold.isChecked() and not b.selbar.b_crop.isVisible()
+    style_ok = tx is not None and tx.bold and tx.align == "center" and abs(I.text_style(tx)[0] - s0 * 1.2) < 0.2
+    rd = [I.from_dict(I.to_dict(x)) for x in (ri, shp, tx)]
+    rt_ok = (abs(I.geom(rd[0])[0] - 30) < 0.01 and abs(rd[0].opacity() - 0.5) < 0.01
+             and rd[0].pixmap().width() == 200 and rd[1].fill == "#64b5f6" and rd[2].bold and rd[2].align == "center"
+             and abs(I.exact_rect(rd[0]).center().x() - I.exact_rect(ri).center().x()) < 0.6)
+    cr = I.from_dict(d_)
+    step("saydamlık, şekil dolgusu (içi tıklanır), kalın/ortala/büyüt, seçim çubuğu düğmeleri",
+         style_ok and bar_ok and info["texts"] == 1 and inside_hit and shp.fill == "#64b5f6")
+    step("kayıt: döndürme / saydamlık / dolgu / yazı biçimi / kırpma korunur",
+         rt_ok and cr.pixmap().width() == 100)
+    sc.clearSelection()
+    ri.setSelected(True)
+    pump()
+    shot(win, "14_dondur")
+
+    # ---- tablo: kenarlı / kenarsız, hücreye yazma, Tab, sütun genişliği, kayıt
+    for it in list(sc.content_items()):
+        sc.removeItem(it)
+    state.set_tool("pen")
+    n0 = win.page.undo.count()
+    tb = b.insert_table(2, 2)
+    pump()
+    ins_ok = isinstance(sc.focusItem(), I.CellEditor) and tb.edit == (0, 0) and tb.border
+    for i, w_ in enumerate(["Konu", "Kim", "Tasarım", "Ayşe"]):
+        if i:
+            key(b, Qt.Key.Key_Tab)
+        for ch in w_:
+            key(b, 0, ch)
+    key(b, Qt.Key.Key_Tab)              # son hücrede Tab: yeni satır
+    tab_row = tb.rows == 3 and tb.edit == (2, 0)
+    key(b, Qt.Key.Key_Escape)
+    pump()
+    step("tablo: ekle, hücrelere yaz, Tab ile geç, son hücrede yeni satır",
+         ins_ok and tb.cells[:2] == [["Konu", "Kim"], ["Tasarım", "Ayşe"]] and tab_row and b.editing_text() is None
+         and win.page.undo.count() == n0 + 2)
+    win.page.undo.undo()
+    step("tablo yazısını geri al: hücreler boşalır", tb.cells == [["", ""], ["", ""]])
+    win.page.undo.redo()
+    # kalem aracındayken çift tık: o hücreye yazar, nokta bırakmaz
+    b.centerOn(I.exact_rect(tb).center())
+    pump()
+    cp = b.mapFromScene(tb.mapToScene(tb.cell_rect(1, 1).center()))
+    n1 = len(sc.content_items())
+    mouse(vp, PRESS, cp, L, L)
+    mouse(vp, REL, cp, L, NB)
+    mouse(vp, QEvent.Type.MouseButtonDblClick, cp, L, L)
+    mouse(vp, REL, cp, L, NB)
+    pump()
+    step("tabloda çift tık (kalemde de): o hücre düzenlenir, nokta kalmaz",
+         tb.edit == (1, 1) and len(sc.content_items()) == n1)
+    key(b, Qt.Key.Key_Escape)
+    # seç aracında sütun çizgisinden genişlik
+    state.set_tool("select")
+    sc.clearSelection()
+    pump()
+    w0 = tb.colw[0]
+    bp = b.mapFromScene(tb.mapToScene(QPointF(tb.colw[0], tb.rowh[0] / 2)))
+    drag(vp, [bp, bp + QPoint(2, 0), bp + QPoint(60, 0)])
+    zf = b.zoom()
+    wide_ok = abs(tb.colw[0] - (w0 + 60 / zf)) < 2 / zf
+    win.page.undo.undo()
+    step("sütun çizgisini sürükle: genişlik değişir (+geri al)", wide_ok and tb.colw[0] == w0)
+    # kenarsız, başlık, satır / sütun ekle-sil, kayıt
+    b.set_table_border(tb, False)
+    b.table_op(tb, lambda: tb.insert_col(1))
+    b.table_op(tb, lambda: tb.delete_row(0))
+    rt = I.from_dict(I.to_dict(tb))
+    step("kenarsız tablo; sütun ekle, satır sil; kayıtta korunur",
+         not tb.border and tb.cols == 3 and tb.rows == 2 and not rt.border and rt.cells == tb.cells
+         and rt.colw == tb.colw and I.exact_rect(rt).width() == I.exact_rect(tb).width())
+    win.page.undo.undo()
+    win.page.undo.undo()
+    win.page.undo.undo()
+    step("tablo işlemlerini geri al: kenarlı 3×2'ye döner", tb.border and tb.cols == 2 and tb.rows == 3)
+    sc.clearSelection()
+    tb.setSelected(True)
+    pump()
+    step("seçim çubuğu: tabloda tablo / kenar / yazı boyutu düğmeleri",
+         b.selbar.b_table.isVisible() and b.selbar.b_corner.isVisible() and b.selbar.b_bigger.isVisible()
+         and not b.selbar.b_bold.isVisible())
+    shot(win, "15_tablo")
+
+    # ---- yan panel, kalınlık, klasörler
+    step("uygulama açılınca notlar paneli açık (kapatılıp çıkılmış olsa da)", panel_at_start)
+    from deltaapp.tools import COLORS, SIZES, DEFAULT_WIDTH
+    step("ana renkler beyaz, siyah, mavi, kırmızı; ince kalem",
+         COLORS[:4] == ["#ffffff", "#000000", "#3ea6ff", "#ff453a"] and min(SIZES) <= 1.5
+         and DEFAULT_WIDTH <= 2.5)
+    from deltaapp.widthmenu import build_width_menu
+    from PyQt6.QtWidgets import QMenu
+    w_before = state.width
+    mm = QMenu(win)
+    box = build_width_menu(mm)
+    box.slider.setValue(13)            # 6,5 px
+    w_set = state.width
+    mm.deleteLater()
+    pen_btn = win.area.toolbar.tool_btns["pen"]
+    step("kaleme sağ tık: kalınlık kaydırıcısı (yarım piksel adım), sağ tık menüsü bağlı",
+         abs(w_set - 6.5) < 1e-6 and pen_btn.contextMenuPolicy() == Qt.ContextMenuPolicy.CustomContextMenu)
+    state.set_width(w_before)
+
+    st = win.store
+    win.set_panel(True)
+    win.panel.set_tab(0)
+    pg = win.page
+    if not pg.saved_once:
+        b.new_text(QPointF(0, 0), "klasör testi")
+        b.finish_text()
+        st.flush()
+    fid = win.panel.new_folder()
+    pump(5)
+    editing = win.panel.list.state() == win.panel.list.State.EditingState
+    st.list_changed.emit()                      # yazarken otomatik kayıt listeyi yenilemeye kalkar: ertelenmeli
+    from PyQt6.QtWidgets import QLineEdit
+    eds = [w_ for w_ in win.panel.list.viewport().findChildren(QLineEdit) if w_.isVisible()]
+    if eds:
+        eds[0].setText("Toplantılar")
+        key(eds[0], Qt.Key.Key_Return)
+    pump(5)
+    fid = "Toplantılar" if st.folder("Toplantılar") else fid      # klasör = diskteki alt klasör (adıyla)
+    win.panel.list.moved.emit(pg.id, fid)       # sürükle-bırak sonucu
+    pump(5)
+    rows = [(win.panel.list.item(i).data(Qt.ItemDataRole.UserRole + 1), win.panel.list.item(i).data(Qt.ItemDataRole.UserRole))
+            for i in range(win.panel.list.count())]
+    st.flush()
+    from deltaapp.pages import NoteStore
+    s3 = NoteStore()
+    step("klasör: aç, adını yaz, notu sürükleyip bırak; panelde klasörün altında, yeniden açılışta korunur",
+         editing and pg.folder == fid and rows[0] == ("folder", fid) and rows[1] == ("note", pg.id)
+         and s3.get(pg.id).folder == fid and s3.folder(fid)["name"] == "Toplantılar"
+         and os.path.dirname(pg.file) == os.path.join(st.root, "Toplantılar") and pg.file.endswith(".delta"))
+    st.set_folder_open(fid, False)
+    win.panel.set_current(None)
+    pump()
+    hidden = all(win.panel.list.item(i).data(Qt.ItemDataRole.UserRole) != pg.id for i in range(win.panel.list.count()))
+    win.panel.set_current(pg.id)
+    st.set_folder_open(fid, True)
+    win.new_note(fid)
+    newp = win.page
+    in_folder = newp.folder == fid
+    win.open_page(pg)
+    shot(win, "16_klasor")
+    st.delete_folder(fid)
+    step("klasör kapanır, klasörde yeni not; klasör silinince notlar kalır",
+         hidden and in_folder and pg.folder == "" and st.get(pg.id) is not None and not st.folders)
+
+    # ---- .delta dosyaları: Resimler\\delta (testte geçici klasör), başlıkla ad, dışarıdan açma, eski notları taşıma
+    import json as _json
+    import shutil as _sh
+    from deltaapp import pages as PG
+    from deltaapp.config import NOTES_DIR
+    win.open_page(pg)
+    pump()
+    with open(pg.file, encoding="utf-8") as f_:
+        dd = _json.load(f_)
+    old_file = pg.file
+    win.store.rename(pg, "Proje: Sunum")
+    step(".delta dosyası: Resimler\\delta içinde, çizimler içinde; başlık değişince dosya adı da değişir",
+         dd.get("format") == "delta-note" and dd.get("id") == pg.id and dd.get("items")
+         and os.path.basename(pg.file) == "Proje. Sunum.delta" and not os.path.exists(old_file)
+         and os.path.dirname(pg.file) == st.root)
+    ext_dir = os.path.join(TMP, "masaustu")
+    os.makedirs(ext_dir, exist_ok=True)
+    ext = os.path.join(ext_dir, "Arkadaştan gelen.delta")
+    _sh.copy2(pg.file, ext)
+    ep = win.open_file(ext)
+    pump()
+    b.new_text(QPointF(400, 400), "ek yazı")
+    b.finish_text()
+    st.flush()
+    with open(ext, encoding="utf-8") as f_:
+        n_items = len(_json.load(f_)["items"])
+    step(".delta çift tık: dışarıdaki dosya açılır, kopya kimliği yenilenir, değişiklik o dosyaya yazılır",
+         ep is not None and win.page is ep and ep.id != pg.id and ep.external
+         and ep.file == ext and ep.display_title() == "Proje: Sunum" and n_items == len(dd["items"]) + 1)
+    # eski sürümün notu (%LOCALAPPDATA%\\delta\\notes\\<id>.json) bir kez taşınır, eskisi yedek kalır
+    legacy_id = "20250101-101010-abcd"
+    with open(os.path.join(NOTES_DIR, legacy_id + ".json"), "w", encoding="utf-8") as f_:
+        _json.dump({"version": 1, "items": dd["items"]}, f_)
+    with open(os.path.join(NOTES_DIR, "index.json"), "w", encoding="utf-8") as f_:
+        _json.dump({legacy_id: {"title": "Eski not", "created": 1735725010, "modified": 1735725010}}, f_)
+    root2 = os.path.join(TMP, "notes2")
+    s4 = PG.NoteStore(root2)
+    lp = s4.get(legacy_id)
+    step("eski notlar .delta'ya taşınır (her not bir kez), eski dosya yedek kalır",
+         lp is not None and os.path.exists(os.path.join(root2, "Eski not.delta"))
+         and os.path.exists(os.path.join(NOTES_DIR, legacy_id + ".json")) and legacy_id in prefs.get("migrated_ids", [])
+         and PG.NoteStore(os.path.join(TMP, "notes3")).get(legacy_id) is None)
 
     from deltaapp.updater import is_newer, parse_version
     step("güncelleme: sürüm karşılaştırma", is_newer("v1.2.0", "1.1.0") and not is_newer("1.1.0", "1.1.0")

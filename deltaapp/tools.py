@@ -8,9 +8,21 @@ from .config import prefs
 TOOLS = ("select", "pen", "hl", "laser", "eraser", "line", "arrow", "rect", "ellipse", "text")
 SHAPES = ("line", "arrow", "rect", "ellipse")
 DRAW_TOOLS = ("pen", "hl") + SHAPES
-# İlki "auto": koyu temada beyaz, açık temada siyah (tema değişince çizimler de döner)
-COLORS = ["auto", "#ff453a", "#ff9f0a", "#ffd60a", "#30d158", "#3ea6ff", "#ff4fa3"]
-SIZES = (2.0, 4.0, 8.0)
+# Ana renkler: beyaz, siyah, mavi, kırmızı, yeşil, sarı, turuncu (Shift+1 … 7).
+# Eski notlardaki "auto" renk yine temaya göre (koyuda beyaz, açıkta siyah) çizilir.
+COLORS = ["#ffffff", "#000000", "#3ea6ff", "#ff453a", "#30d158", "#ffd60a", "#ff9f0a"]
+COLOR_NAMES = ["col_white", "col_black", "col_blue", "col_red", "col_green", "col_yellow", "col_orange"]
+SIZES = (1.5, 2.5, 5.0)
+DEFAULT_WIDTH = 2.5
+
+
+def default_color():
+    """Varsayılan kalem rengi: koyu temada beyaz, açık temada siyah."""
+    try:
+        from .theme import is_dark
+        return "#ffffff" if is_dark() else "#000000"
+    except Exception:
+        return "#ffffff"
 ICON = {"select": "select", "pen": "pen", "hl": "highlighter", "laser": "laser", "eraser": "eraser",
         "line": "line", "arrow": "arrow", "rect": "rect", "ellipse": "ellipse", "text": "text"}
 # Varsayılan araç tuşları rakamlarda (harfler boşta: tahtada harfe basınca imlecin yerine hemen yazı başlar).
@@ -86,11 +98,12 @@ class ToolState(QObject):
         super().__init__()
         t = prefs.get("tool", "pen")
         self.tool = t if t in TOOLS else "pen"
-        self.color = str(prefs.get("color", "auto") or "auto")
+        c = str(prefs.get("color", "auto") or "auto")
+        self.color = default_color() if c == "auto" else c
         try:
-            self.width = float(prefs.get("width", 4.0))
+            self.width = float(prefs.get("width", DEFAULT_WIDTH))
         except (TypeError, ValueError):
-            self.width = 4.0
+            self.width = DEFAULT_WIDTH
         ls = prefs.get("last_shape", "arrow")
         self.last_shape = ls if ls in SHAPES else "arrow"
         self.custom_color = str(prefs.get("custom_color", "#b0b0b0"))
@@ -118,7 +131,7 @@ class ToolState(QObject):
         self.changed.emit()
 
     def set_width(self, w):
-        w = max(1.0, min(60.0, float(w)))
+        w = max(0.5, min(60.0, round(float(w), 1)))
         if abs(w - self.width) < 1e-6:
             return
         self.width = w
@@ -127,14 +140,14 @@ class ToolState(QObject):
 
     def nudge(self, d):
         w = self.width
-        step = 1 if w < 6 else 2 if w < 16 else 4
+        step = 0.5 if w < 3 else 1 if w < 6 else 2 if w < 16 else 4
         self.set_width(w + d * step)
 
     def width_for(self, tool):
         return self.width * 4 + 6 if tool == "hl" else self.width
 
     def text_px(self):
-        return round(12 + self.width * 3.5)
+        return round(19 + self.width * 1.75)     # yazı boyutu kalınlıkla biraz büyür (2,5 → 23 px)
 
 
 state = ToolState()

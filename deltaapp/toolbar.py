@@ -10,7 +10,7 @@ from . import items as I
 from .config import prefs
 from .i18n import t
 from .theme import theme, qcolor, color as tcolor
-from .tools import state, COLORS, SIZES, SHAPES, ICON, tool_key
+from .tools import state, COLORS, COLOR_NAMES, SIZES, SHAPES, ICON, tool_key
 from .widgets import IconButton
 
 POSITIONS = ("bottom", "top", "left", "right")
@@ -51,7 +51,9 @@ class Swatch(QAbstractButton):
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(qcolor("hover"))
             p.drawEllipse(c, 13, 13)
-        p.setPen(QPen(qcolor("divider"), 1))
+        # beyaz / siyah zeminle karışmasın: uçtaki renklerde kenar belirgin
+        extreme = I.ink(self.col).lightness() in range(0, 40) or I.ink(self.col).lightness() > 225
+        p.setPen(QPen(qcolor("text3") if extreme else qcolor("divider"), 1.2 if extreme else 1))
         p.setBrush(I.ink(self.col))
         p.drawEllipse(c, 8.5, 8.5)
 
@@ -75,7 +77,7 @@ class SizeDot(QAbstractButton):
             p.drawEllipse(c, 13, 13)
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(qcolor("text"))
-        r = {2.0: 2.0, 4.0: 3.6, 8.0: 6.0}.get(self.w, 3)
+        r = min(6.0, 1.4 + self.w * 0.9)
         p.drawEllipse(c, r, r)
 
 
@@ -115,16 +117,20 @@ class ToolBar(QWidget):
             lay.addWidget(b)
         self.shape_btn = IconButton(ICON[state.last_shape], "", 36, 20, checkable=True, obj="ToolBtn")
         self.shape_btn.clicked.connect(self._shape_menu)
+        self._width_on_right_click(self.shape_btn, "shape")
         lay.addWidget(self.shape_btn)
         lay.addWidget(self._tool_btn("text"))
         b = IconButton("image", t("insert_image") + " (Ctrl+I) · Ctrl+V", 36, 20, obj="ToolBtn")
         b.clicked.connect(lambda: self.board_fn().insert_image_dialog())
         lay.addWidget(b)
+        self.table_btn = IconButton("table", t("insert_table"), 36, 20, obj="ToolBtn")
+        self.table_btn.clicked.connect(self._table_menu)
+        lay.addWidget(self.table_btn)
         lay.addWidget(Sep())
         self.swatches = []
         for i, c in enumerate(COLORS):
             s = Swatch(c)
-            s.setToolTip(t("color_n", n=i + 1) if c != "auto" else t("color_auto"))
+            s.setToolTip(f"{t(COLOR_NAMES[i])} · Shift+{i + 1}")
             s.clicked.connect(lambda _=False, col=c: self.board_fn().apply_color(col))
             self.swatches.append(s)
             lay.addWidget(s)
@@ -166,8 +172,22 @@ class ToolBar(QWidget):
     def _tool_btn(self, tool):
         b = IconButton(ICON[tool], "", 36, 20, checkable=True, obj="ToolBtn")
         b.clicked.connect(lambda _=False, x=tool: state.set_tool(x))
+        if tool in ("pen", "hl"):
+            self._width_on_right_click(b, tool)
         self.tool_btns[tool] = b
         return b
+
+    def _width_on_right_click(self, b, tool):
+        """Araç düğmesine sağ tık: kalınlık kaydırıcısı (araç da seçilir)."""
+        from .widthmenu import build_width_menu
+        b.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+
+        def show(_pos):
+            state.set_tool(tool if tool != "shape" else state.last_shape)
+            m = QMenu(self)
+            build_width_menu(m)
+            self._popup(m, b)
+        b.customContextMenuRequested.connect(show)
 
     def update_tips(self):
         for tool, b in self.tool_btns.items():
@@ -278,17 +298,26 @@ class ToolBar(QWidget):
             a.triggered.connect(lambda _=False, x=tool: state.set_tool(x))
         m.addSeparator()
         m.addAction(t("shift_hint")).setEnabled(False)
-        r = self.shape_btn.rect()
+        self._popup(m, self.shape_btn)
+
+    def _table_menu(self):
+        m = QMenu(self)
+        self.board_fn().build_table_insert_menu(m)
+        self._popup(m, self.table_btn)
+
+    def _popup(self, m, btn):
+        """Menüyü düğmenin yanında, araç çubuğunun dışına doğru açar."""
+        r = btn.rect()
         pos = prefs.get("toolbar_pos", "bottom")
         sh = m.sizeHint()
         if pos == "left":
-            g = self.shape_btn.mapToGlobal(QPoint(r.right() + 8, r.top()))
+            g = btn.mapToGlobal(QPoint(r.right() + 8, r.top()))
         elif pos == "right":
-            g = self.shape_btn.mapToGlobal(QPoint(r.left() - sh.width() - 8, r.top()))
+            g = btn.mapToGlobal(QPoint(r.left() - sh.width() - 8, r.top()))
         elif pos == "top":
-            g = self.shape_btn.mapToGlobal(QPoint(r.left(), r.bottom() + 6))
+            g = btn.mapToGlobal(QPoint(r.left(), r.bottom() + 6))
         else:
-            g = self.shape_btn.mapToGlobal(QPoint(r.left(), r.top() - sh.height() - 6))
+            g = btn.mapToGlobal(QPoint(r.left(), r.top() - sh.height() - 6))
         m.exec(g)
 
     def _pick_color(self):

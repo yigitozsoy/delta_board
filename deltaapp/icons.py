@@ -19,6 +19,8 @@ P = {
     "win_restore": "M8.5 4h9A2.5 2.5 0 0 1 20 6.5v9h-1.5v-9a1 1 0 0 0-1-1h-9zM5.5 8h9A1.5 1.5 0 0 1 16 9.5v9a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 4 18.5v-9A1.5 1.5 0 0 1 5.5 8zm0 1.5v9h9v-9z",
     "pin": "M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z",
     "pin_outline": "M14 4v5c0 1.12.37 2.16 1 3H9c.65-.86 1-1.9 1-3V4h4m3-2H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3V4h1c.55 0 1-.45 1-1s-.45-1-1-1z",
+    "folder": "M9.17 6l2 2H20v10H4V6h5.17M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z",
+    "create_new_folder": "M20 6h-8l-2-2H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm0 12H4V6h5.17l2 2H20v10zm-8-4h2v2h2v-2h2v-2h-2v-2h-2v2h-2z",
     "folder_open": "M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z",
     "image": "M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z",
     "save": "M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z",
@@ -73,6 +75,82 @@ P = {
     "grid": ('<g fill="{c}"><circle cx="6" cy="6" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="18" cy="6" r="1.6"/>'
              '<circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/>'
              '<circle cx="6" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/></g>'),
+    # --- hizala / diz / grupla / katman
+    "align_left": _s('<path d="M4 3v18"/><rect x="7" y="6" width="12" height="4" rx="1"/>'
+                     '<rect x="7" y="14" width="7.5" height="4" rx="1"/>'),
+    "align_hcenter": _s('<path d="M12 3v18"/><rect x="5.5" y="6" width="13" height="4" rx="1"/>'
+                        '<rect x="8" y="14" width="8" height="4" rx="1"/>'),
+    "align_right": _s('<path d="M20 3v18"/><rect x="5" y="6" width="12" height="4" rx="1"/>'
+                      '<rect x="9.5" y="14" width="7.5" height="4" rx="1"/>'),
+    "align_top": _s('<path d="M3 4h18"/><rect x="6" y="7" width="4" height="12" rx="1"/>'
+                    '<rect x="14" y="7" width="4" height="7.5" rx="1"/>'),
+    "align_vcenter": _s('<path d="M3 12h18"/><rect x="6" y="5.5" width="4" height="13" rx="1"/>'
+                        '<rect x="14" y="8" width="4" height="8" rx="1"/>'),
+    "align_bottom": _s('<path d="M3 20h18"/><rect x="6" y="5" width="4" height="12" rx="1"/>'
+                       '<rect x="14" y="9.5" width="4" height="7.5" rx="1"/>'),
+    "dist_h": _s('<path d="M3.5 4v16M20.5 4v16"/><rect x="9.5" y="7" width="5" height="10" rx="1"/>'),
+    "dist_v": _s('<path d="M4 3.5h16M4 20.5h16"/><rect x="7" y="9.5" width="10" height="5" rx="1"/>'),
+    "lay_row": _s('<rect x="2.5" y="8" width="5" height="8" rx="1"/><rect x="9.5" y="8" width="5" height="8" rx="1"/>'
+                  '<rect x="16.5" y="8" width="5" height="8" rx="1"/>'),
+    "lay_column": _s('<rect x="8" y="2.5" width="8" height="5" rx="1"/><rect x="8" y="9.5" width="8" height="5" rx="1"/>'
+                     '<rect x="8" y="16.5" width="8" height="5" rx="1"/>'),
+    "lay_grid": _s('<rect x="3.5" y="3.5" width="7" height="7" rx="1"/><rect x="13.5" y="3.5" width="7" height="7" rx="1"/>'
+                   '<rect x="3.5" y="13.5" width="7" height="7" rx="1"/><rect x="13.5" y="13.5" width="7" height="7" rx="1"/>'),
+    "lay_circle": _s('<circle cx="12" cy="4.6" r="2.2"/><circle cx="19.1" cy="9.8" r="2.2"/>'
+                     '<circle cx="16.4" cy="18.2" r="2.2"/><circle cx="7.6" cy="18.2" r="2.2"/>'
+                     '<circle cx="4.9" cy="9.8" r="2.2"/>'),
+    "same_size": _s('<rect x="3" y="6.5" width="7.5" height="11" rx="1"/><rect x="13.5" y="6.5" width="7.5" height="11" rx="1"/>'),
+    "group": _s('<path d="M3 7V4.5A1.5 1.5 0 0 1 4.5 3H7M17 3h2.5A1.5 1.5 0 0 1 21 4.5V7M21 17v2.5a1.5 1.5 0 0 1-1.5 '
+                '1.5H17M7 21H4.5A1.5 1.5 0 0 1 3 19.5V17"/><rect x="6.5" y="6.5" width="6.5" height="6.5" rx="1"/>'
+                '<rect x="11" y="11" width="6.5" height="6.5" rx="1"/>'),
+    "ungroup": _s('<rect x="3.5" y="3.5" width="7" height="7" rx="1"/><rect x="13.5" y="13.5" width="7" height="7" rx="1"/>'
+                  '<path d="M14 4h6v6M4 14v6h6" stroke-dasharray="2 2.4"/>'),
+    "layers": _s('<path d="M12 3.5l8.5 4.5-8.5 4.5-8.5-4.5z"/><path d="M3.5 12l8.5 4.5 8.5-4.5"/>'
+                 '<path d="M3.5 16l8.5 4.5 8.5-4.5"/>'),
+    "z_front": _s('<path d="M5 4h14M12 20V8.5M7.5 13L12 8.5l4.5 4.5"/>'),
+    "z_forward": _s('<path d="M12 19.5V5.5M7 10.5l5-5 5 5"/>'),
+    "z_backward": _s('<path d="M12 4.5v14M7 13.5l5 5 5-5"/>'),
+    "z_back": _s('<path d="M5 20h14M12 4v11.5M7.5 11l4.5 4.5 4.5-4.5"/>'),
+    "lock": _s('<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>'),
+    "lock_open": _s('<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 7.7-1.5"/>'),
+    "eye": _s('<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>'),
+    "eye_off": _s('<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>'
+                  '<path d="M4 4l16 16"/>'),
+    # --- 1.3 paket 3: döndür / kırp / saydamlık / dolgu / yazı biçimi ---
+    "crop": _s('<path d="M6.5 2.5v14.5a.5.5 0 0 0 .5.5h14.5"/><path d="M2.5 6.5h14.5a.5.5 0 0 1 .5.5v14.5"/>'),
+    "rotate_right": _s('<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 3.5v5h-5"/>'),
+    "rotate_left": _s('<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 3.5v5h5"/>'),
+    "flip_h": _s('<path d="M12 3v18" stroke-dasharray="2 2.2"/><path d="M9 6L3.5 17.5H9z"/><path d="M15 6l5.5 11.5H15z"/>'),
+    "flip_v": _s('<path d="M3 12h18" stroke-dasharray="2 2.2"/><path d="M6 9L17.5 3.5V9z"/><path d="M6 15l11.5 5.5V15z"/>'),
+    "rot_reset": _s('<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 3.5v5h5"/><path d="M12 8.5V12l2.5 1.5"/>'),
+    "opacity": _s('<path d="M12 3.2s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11z"/><path d="M12 20.2v-12" />'
+                  '<path d="M12 12.5l4.6-2.4M12 16.6l5.6-2.7"/>'),
+    "fill": _s('<path d="M10 3.5l8 8-6.5 6.5a1.4 1.4 0 0 1-2 0L3.5 12a1.4 1.4 0 0 1 0-2z"/><path d="M3.8 11h14"/>'
+               '<path d="M20 15.5s1.6 2 1.6 3a1.6 1.6 0 0 1-3.2 0c0-1 1.6-3 1.6-3z"/>'),
+    "fill_none": _s('<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M5 19L19 5"/>'),
+    "format_bold": _s('<path d="M7 4.5h6a3.6 3.6 0 0 1 0 7.2H7zM7 11.7h7a3.9 3.9 0 0 1 0 7.8H7z"/>', "2.4"),
+    "format_italic": _s('<path d="M10 4.5h8M6 19.5h8M15 4.5l-6 15"/>', "2.1"),
+    "format_underlined": _s('<path d="M7 4v6.5a5 5 0 0 0 10 0V4M5.5 20.5h13"/>', "2.1"),
+    "text_bigger": _s('<path d="M3 19L8.5 5 14 19M5 14.5h7M18.5 6v7M15 9.5h7"/>'),
+    "text_smaller": _s('<path d="M3 19L8.5 5 14 19M5 14.5h7M15 9.5h7"/>'),
+    "talign_left": _s('<path d="M4 5.5h16M4 10h10M4 14.5h16M4 19h10"/>'),
+    "talign_center": _s('<path d="M4 5.5h16M7 10h10M4 14.5h16M7 19h10"/>'),
+    "talign_right": _s('<path d="M4 5.5h16M10 10h10M4 14.5h16M10 19h10"/>'),
+    # --- tablo ---
+    "table": _s('<rect x="3.5" y="4.5" width="17" height="15" rx="0.6"/><path d="M3.5 9.5h17M3.5 14.5h17M9.2 4.5v15M14.8 4.5v15"/>'),
+    "table_round": _s('<rect x="3.5" y="4.5" width="17" height="15" rx="4"/><path d="M3.5 9.5h17M3.5 14.5h17M9.2 4.5v15M14.8 4.5v15"/>'),
+    "row_above": _s('<rect x="3.5" y="11" width="17" height="9" rx="1"/><path d="M3.5 15.5h17M12 2.5v6M9 5.5h6"/>'),
+    "row_below": _s('<rect x="3.5" y="4" width="17" height="9" rx="1"/><path d="M3.5 8.5h17M12 15.5v6M9 18.5h6"/>'),
+    "col_left": _s('<rect x="11" y="3.5" width="9" height="17" rx="1"/><path d="M15.5 3.5v17M5.5 9v6M2.5 12h6"/>'),
+    "col_right": _s('<rect x="4" y="3.5" width="9" height="17" rx="1"/><path d="M8.5 3.5v17M18.5 9v6M15.5 12h6"/>'),
+    "row_del": _s('<rect x="3.5" y="4" width="17" height="9" rx="1"/><path d="M3.5 8.5h17M9.5 16.5l5 5M14.5 16.5l-5 5"/>'),
+    "col_del": _s('<rect x="4" y="3.5" width="9" height="17" rx="1"/><path d="M8.5 3.5v17M16 9.5l5 5M21 9.5l-5 5"/>'),
+    "border_on": _s('<rect x="3.5" y="3.5" width="17" height="17" rx="0.6"/><path d="M12 3.5v17M3.5 12h17"/>'),
+    "border_off": _s('<path d="M12 3.5v17M3.5 12h17"/><rect x="3.5" y="3.5" width="17" height="17" rx="0.6" '
+                     'stroke-dasharray="1.4 2.6" stroke-width="1.3"/>'),
+    "blank": _s(''),
+    "header_row": _s('<rect x="3.5" y="4.5" width="17" height="15" rx="1"/><path d="M3.5 9.5h17"/>'
+                     '<path d="M4.5 5.5h15v3h-15z" fill="{c}" stroke="none"/>'),
 }
 
 _cache = {}

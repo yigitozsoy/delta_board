@@ -12,6 +12,8 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLa
 from .canvas import Board, render_scene
 from .config import prefs, snapshot_dir
 from .i18n import t
+from . import items as I
+from .tools import state, DRAW_TOOLS
 from .pages import NotesPanel
 from .theme import theme, current_name, qcolor
 from .titlebar import TitleBar
@@ -49,6 +51,7 @@ class BoardArea(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.board = Board(self)
         self.toolbar = ToolBar(self, lambda: self.board)
+        self.board.avoid = [self.toolbar]   # seçim çubuğu araç çubuğunun üstüne binmesin
         self.hint = QLabel(self)
         self.hint.setObjectName("EmptyHint")
         self.hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -130,6 +133,9 @@ class MainWindow(QMainWindow):
         self.panel_div = Divider(root, vertical=True)
         body.addWidget(self.panel_div)
         self.panel = NotesPanel(store, root)
+        from .layers import LayersPanel
+        self.layers = LayersPanel(self.board, self.panel)
+        self.panel.set_layers(self.layers)
         body.addWidget(self.panel)
         v.addLayout(body, 1)
         self.setCentralWidget(root)
@@ -149,6 +155,8 @@ class MainWindow(QMainWindow):
         tb.title_edited.connect(self._title_edited)
         self.panel.open_page.connect(self.open_page)
         self.panel.new_page.connect(self.new_note)
+        store.error.connect(lambda m: self.board.toast(m, 3200))
+        self.panel.new_page_in.connect(lambda fid: self.new_note(fid))
         self.panel.rename_page.connect(self.rename_page)
         self.panel.delete_page.connect(self.delete_page)
         self.panel.export_page.connect(self.export_page)
@@ -162,16 +170,25 @@ class MainWindow(QMainWindow):
                         ("Ctrl+,", self.request_prefs.emit), ("Ctrl+Tab", lambda: self._cycle(1)),
                         ("Ctrl+Shift+Tab", lambda: self._cycle(-1)), ("F1", self.show_help),
                         ("F2", lambda: self.rename_page(self.page) if self.page is not None else None),
-                        ("Ctrl+B", lambda: self.set_panel(not self.panel.isVisible()))):
+                        ("Ctrl+B", lambda: self.set_panel(not self.panel.isVisible())),
+                        ("Ctrl+Shift+K", self.toggle_layers)):
             sc = QShortcut(QKeySequence(seq), self)
             sc.activated.connect(fn)
 
-        self.set_panel(bool(prefs.get("sidebar_visible", True)), save=False)
+        self.set_panel(True, save=False)     # uygulama açılınca notlar paneli hep açık gelir
         self._restore_geometry()
         last = store.get(prefs.get("last_note"))
         pages = store.sorted()
         self.open_page(last or (pages[0] if pages else store.create()))
         self.titlebar.set_pinned(bool(prefs.get("pinned", False)))
+
+    def toggle_layers(self):
+        """Katmanlar sekmesi: kapalıysa paneli açıp sekmeye geçer, açıksa notlara döner."""
+        if self.panel.isVisible() and self.panel.tab() == 1:
+            self.panel.set_tab(0)
+        else:
+            self.set_panel(True)
+            self.panel.set_tab(1)
 
     # ============================================================ notlar
     def open_page(self, page):
@@ -189,12 +206,14 @@ class MainWindow(QMainWindow):
         self._refresh_title()
         self.board.setFocus()
 
-    def new_note(self):
+    def new_note(self, folder=""):
         if self.page is not None and self.page.is_empty() and not self.page.saved_once:
+            if folder:
+                self.store.move_to_folder(self.page, folder)
             self.board.setFocus()
             self.board.toast(t("already_empty"))
             return self.page
-        p = self.store.create()
+        p = self.store.create(folder or "")
         self.open_page(p)
         return p
 
@@ -307,9 +326,25 @@ class MainWindow(QMainWindow):
         img = pm.toImage()
         img.setDevicePixelRatio(1.0)
         at = self.board.mapToScene(self.board.viewport().rect().center())
-        it = self.board.insert_image(img, at, dpr)
-        if it is not None and self.page.is_empty() is False:
+        # yapıştırılmış gibi gelir: gerçek boyutunda, seçili değil (tutamaç yok), görünüm alıntıya sığar.
+        # Boyutu yakınlaştırarak ayarlanır; doğrudan üstüne çizilebilsin diye kalem seçilir.
+        it = self.board.insert_image(img, at, dpr, select=False, fit=True)
+        if it is not None:
+            if state.tool not in DRAW_TOOLS:
+                state.set_tool("pen")
+            self.board.fit_to(I.exact_rect(it))
             self.board.toast(t("cap_added"))
+
+    def open_file(self, path):
+        """.delta dosyası (çift tık / komut satırı): o notu açar."""
+        self.bring_front()
+        p = self.store.open_file(path)
+        if p is None:
+            self.board.toast(t("open_failed"), 2600)
+            return None
+        self.open_page(p)
+        self.panel.set_current(p.id)
+        return p
 
     def quick_note(self):
         """Kısayolla hızlı not: pencere öne gelir, boş not açılır, imleç yazmaya hazır."""

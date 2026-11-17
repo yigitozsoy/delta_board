@@ -37,6 +37,8 @@ WizardStyle=modern
 ; delta tepside çalışır; kapatma işini aşağıda "delta.exe --quit" ile kendimiz yapıyoruz
 CloseApplications=no
 RestartApplications=no
+; .delta not dosyaları delta ile açılır (Gezgin simgeleri yenilensin)
+ChangesAssociations=yes
 
 [Languages]
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
@@ -53,6 +55,8 @@ turkish.SnipName=delta alıntı
 english.SnipName=delta snip
 turkish.SnipDesc=Ekran alıntısı al (delta kapalıysa tepside açılır)
 english.SnipDesc=Take a screen snip (starts delta in the tray if it is not running)
+turkish.NoteType=delta notu
+english.NoteType=delta note
 turkish.LaunchApp=delta'yı aç
 english.LaunchApp=Open delta
 
@@ -68,16 +72,22 @@ Source: "..\build\dist\delta\*"; DestDir: "{app}"; Flags: ignoreversion recurses
 Type: filesandordirs; Name: "{app}\_internal"
 
 [Icons]
+; alıntı kısayolunun kendi kimliği var: aynı kimlikte Windows onu delta sayar, görev çubuğuna ayrıca sabitlenmez
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"; Comment: "{cm:Desc}"; AppUserModelID: "{#AppUserModelID}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Comment: "{cm:Desc}"; AppUserModelID: "{#AppUserModelID}"; Tasks: desktopicon
-Name: "{group}\{cm:SnipName}"; Filename: "{app}\{#AppExe}"; Parameters: "--snip"; IconFilename: "{app}\_internal\deltaapp\assets\snip.ico"; Comment: "{cm:SnipDesc}"; AppUserModelID: "{#AppUserModelID}"
-Name: "{autodesktop}\{cm:SnipName}"; Filename: "{app}\{#AppExe}"; Parameters: "--snip"; IconFilename: "{app}\_internal\deltaapp\assets\snip.ico"; Comment: "{cm:SnipDesc}"; AppUserModelID: "{#AppUserModelID}"; Tasks: desktopicon
+Name: "{group}\{cm:SnipName}"; Filename: "{app}\{#AppExe}"; Parameters: "--snip"; IconFilename: "{app}\_internal\deltaapp\assets\snip.ico"; Comment: "{cm:SnipDesc}"; AppUserModelID: "{#AppUserModelID}.snip"
+Name: "{autodesktop}\{cm:SnipName}"; Filename: "{app}\{#AppExe}"; Parameters: "--snip"; IconFilename: "{app}\_internal\deltaapp\assets\snip.ico"; Comment: "{cm:SnipDesc}"; AppUserModelID: "{#AppUserModelID}.snip"; Tasks: desktopicon
 
 [Registry]
 ; "Windows ile başlat" — uygulamanın Seçenekler'deki anahtarıyla aynı kayıt (HKCU Run → delta)
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "delta"; ValueData: """{app}\{#AppExe}"" --tray"; Tasks: autostart; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "delta"; ValueType: none; Flags: deletevalue uninsdeletevalue; Tasks: not autostart
 Root: HKA; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#AppExe}"; ValueType: string; ValueData: "{app}\{#AppExe}"; Flags: uninsdeletekey
+; .delta: delta notu (çizimler, yazılar, görseller, katmanlar) — çift tıkla delta'da düzenlenebilir açılır
+Root: HKA; Subkey: "Software\Classes\.delta"; ValueType: string; ValueName: ""; ValueData: "delta.Note"; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\delta.Note"; ValueType: string; ValueName: ""; ValueData: "{cm:NoteType}"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\delta.Note\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\_internal\deltaapp\assets\logo.ico"
+Root: HKA; Subkey: "Software\Classes\delta.Note\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExe}"" ""%1"""
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchApp}"; Flags: nowait postinstall skipifsilent

@@ -576,14 +576,17 @@ MOUSE = [
     ("m_middle", "h_middle"), ("m_wheel", "h_wheel"), ("m_ctrl_wheel", "h_ctrl_wheel"),
     ("m_alt_wheel", "h_alt_wheel"), ("m_shift_left", "h_shift_left"), ("m_ctrl_left", "h_ctrl_left"),
     ("m_double", "h_double"), ("m_middle_double", "h_middle_double"), ("m_side", "h_side"),
-    ("m_drop", "h_drop"),
+    ("m_drop", "h_drop"), ("m_rotate", "h_m_rotate"), ("m_crop", "h_m_crop"),
+    ("m_table", "h_m_table"),
 ]
 KEYS = [
     ("1 · 2", "h_k_pen"), ("3 · 4 · 5 · 6", "h_k_shapes"), ("7", "h_k_text"), ("8", "h_k_laser"),
     ("9", "h_k_eraser"), ("0", "h_k_select"), ("A … Z", "h_k_type"), ("Enter", "h_k_enter"),
     ("Shift+1 – 7", "h_k_colors"), ("Ctrl+↑ / Ctrl+↓", "h_k_size"), ("Ctrl+I", "h_k_image"),
     ("Ctrl+Z / Ctrl+Y", "h_k_undo"), ("Ctrl+C / X / V / D", "h_k_clip"), ("Ctrl+A · Delete", "h_k_sel"),
-    ("Home · Ctrl+0", "h_k_fit"), ("Ctrl+G", "h_k_grid"), ("Ctrl+N · Ctrl+Tab", "h_k_notes"),
+    ("← ↑ → ↓", "h_k_nudge"), ("Ctrl+G · Ctrl+Shift+G", "h_k_group"), ("Ctrl+L", "h_k_lock"),
+    ("Ctrl+PgUp / PgDown", "h_k_order"), ("Ctrl+Shift+K", "h_k_layers"),
+    ("Home · Ctrl+0", "h_k_fit"), ("Ctrl+R", "h_k_grid"), ("Ctrl+N · Ctrl+Tab", "h_k_notes"),
     ("Ctrl+S · Ctrl+Shift+S", "h_k_save"), ("Ctrl+Shift+C", "h_k_copyall"), ("F11 · Ctrl+B", "h_k_view"),
     ("F1", "h_k_help"),
 ]
